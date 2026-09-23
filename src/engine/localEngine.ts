@@ -55,10 +55,19 @@ class LocalEngine implements Engine {
     };
 
     const engine = new LocalEngine(model, worker, pending);
-    const ready = await engine.send({ kind: "load", model }, onProgress);
-    if (ready.kind !== "ready") throw new Error("The model failed to load.");
-    engine.runtime = ready.runtime;
-    return engine;
+    try {
+      const ready = await engine.send({ kind: "load", model }, onProgress);
+      if (ready.kind !== "ready") throw new Error("The model failed to load.");
+      engine.runtime = ready.runtime;
+      return engine;
+    } catch (caught) {
+      // A worker holding a partially-loaded model is a real memory leak — a
+      // failed multi-gigabyte load must not survive in a tab that looks idle.
+      // Rethrow the original error (e.g. "WebGPU device lost") rather than a
+      // generic wrapper, so the visitor sees why loading actually failed.
+      worker.terminate();
+      throw caught;
+    }
   }
 
   private send(
@@ -83,7 +92,9 @@ class LocalEngine implements Engine {
 
   /** Synchronous by interface, but the tokenizer lives in the worker. The cache is
    *  filled by `primeTokenCount`; an unseen string falls back to a word count so a
-   *  freshly typed state still shows a number. */
+   *  freshly typed state still shows a number. That fallback is only an estimate —
+   *  measured against the real tokenizer it undercounts by roughly 1.8x to 2.2x —
+   *  so callers should prime before treating the result as exact. */
   countTokens(state: string): number {
     return this.tokenCache.get(state) ?? state.split(/\s+/).filter(Boolean).length;
   }
@@ -99,8 +110,15 @@ class LocalEngine implements Engine {
     try {
       await this.send({ kind: "dispose" });
     } finally {
-      this.worker.terminate();
+      // Clearing the map does not settle anything still waiting on it: a
+      // decide() or countTokens() outstanding when dispose() runs must be
+      // rejected, not silently abandoned, or its caller hangs forever.
+      const disposedError = new Error(
+        "The engine was disposed while this request was still pending."
+      );
+      for (const entry of this.pending.values()) entry.reject(disposedError);
       this.pending.clear();
+      this.worker.terminate();
     }
   }
 }

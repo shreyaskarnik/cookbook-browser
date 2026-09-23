@@ -30,7 +30,16 @@ export interface Engine {
     state: string,
     questions: Record<string, Question>
   ): Promise<Record<string, Answer>>;
-  /** Token count of `state` alone, for the over-length warning. */
+  /** Token count of `state` alone, for the over-length warning. Where the tokenizer
+   *  is not available synchronously (e.g. it lives in a worker), this may be a
+   *  cheap estimate — such as a word count — until `primeTokenCount` has resolved
+   *  for this exact string. Measured against `open-jev`'s real tokenizer, that
+   *  estimate undercounts by roughly 1.8x to 2.2x, so treat an unprimed value as
+   *  approximate, not exact. */
   countTokens(state: string): number;
+  /** Ask the tokenizer for an exact count and cache it, so a later synchronous
+   *  `countTokens` for the same text is exact rather than an estimate. Optional:
+   *  an engine whose `countTokens` is already exact need not implement it. */
+  primeTokenCount?(state: string): Promise<number>;
   dispose(): Promise<void>;
 }

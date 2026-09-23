@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { docsUrl, getDefinition, getEntry } from "../../cookbooks";
-import type { Engine, NoulAnswer } from "../../engine";
+import type { Answer, Engine, NoulAnswer } from "../../engine";
 import { formatDuration, formatPercent } from "../../lib/format";
 import {
   DEFAULT_BAND,
@@ -16,6 +16,24 @@ import StatePane from "../panes/StatePane";
 
 const ID = "consistency-noul";
 
+/** `decide`'s return type covers `choice` and `score` answers too; this cookbook
+ *  only ever asks noul questions, but nothing at the type level enforces that.
+ *  A future cookbook copied from this file with mixed question types would
+ *  otherwise inherit a silent cast that produces answers whose `.probability`
+ *  is `undefined` — rendering as `NaN%` bars with no error pointing at the
+ *  cause. Throw instead, naming the offending key and its actual type, the
+ *  same way `FakeEngine` already refuses a non-noul override. */
+function assertNoulAnswers(answers: Record<string, Answer>): Record<string, NoulAnswer> {
+  for (const [key, answer] of Object.entries(answers)) {
+    if (answer.type !== "noul") {
+      throw new Error(
+        `Expected a noul answer for "${key}", but got type "${answer.type}".`
+      );
+    }
+  }
+  return answers as Record<string, NoulAnswer>;
+}
+
 export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
   const definition = getDefinition(ID);
   const entry = getEntry(ID);
@@ -24,6 +42,11 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
   const [tokens, setTokens] = useState(() => engine.countTokens(definition.samples[0].text));
   const [tokensExact, setTokensExact] = useState(false);
   const [answers, setAnswers] = useState<Record<string, NoulAnswer> | null>(null);
+  // The exact text `answers` was produced from. Compared against the live `state`
+  // to detect when a run's results no longer describe what is in the box — the
+  // textarea is disabled while `running`, so this can only drift after a run has
+  // finished and the visitor keeps typing.
+  const [answeredState, setAnsweredState] = useState<string | null>(null);
   const [band, setBand] = useState(DEFAULT_BAND);
   const [elapsed, setElapsed] = useState<number | null>(null);
   const [running, setRunning] = useState(false);
@@ -36,6 +59,10 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
   );
   const summary = bandSummary(routed);
   const verdict = routed.length > 0 ? claimVerdict(routed) : null;
+  // True once the claim text has moved on from the text these answers describe.
+  // The answers stay on screen — re-routing them by dragging the band is still a
+  // reasonable thing to do — but they are no longer about what is in the box.
+  const stale = answers !== null && state !== answeredState;
 
   // The tokenizer lives in the worker, so an exact count is only available
   // asynchronously. Show the synchronous estimate immediately, then replace it
@@ -45,11 +72,14 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
   useEffect(() => {
     setTokens(engine.countTokens(state));
     setTokensExact(false);
-    if (!engine.primeTokenCount) return;
+    // Captured in a local so it narrows to a defined function for the closure
+    // below — `engine.primeTokenCount` itself would stay optional there, since
+    // narrowing on a property access does not persist across a closure boundary.
+    const primeTokenCount = engine.primeTokenCount;
+    if (!primeTokenCount) return;
     let current = true;
     const timer = setTimeout(() => {
-      engine
-        .primeTokenCount?.(state)
+      primeTokenCount(state)
         .then((exactCount) => {
           if (!current) return;
           setTokens(exactCount);
@@ -72,8 +102,13 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
     try {
       const result = await engine.decide(state, definition.questions);
       setElapsed(performance.now() - started);
-      setAnswers(result as Record<string, NoulAnswer>);
+      setAnswers(assertNoulAnswers(result));
+      setAnsweredState(state);
     } catch (caught) {
+      // The textarea is disabled while running, so `state` cannot have changed
+      // underneath a failed attempt — any answers already on screen are still
+      // correct for it and are left in place; the error explains what happened
+      // to this attempt, not that the previous results are wrong.
       setError(caught instanceof Error ? caught.message : String(caught));
     } finally {
       setRunning(false);
@@ -137,6 +172,14 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
 
         {answers && (
           <>
+            {stale && (
+              <p className="rounded-xl border border-review/30 bg-review/10 p-3 text-sm text-review">
+                <span className="font-semibold">Stale. </span>
+                The claim text has changed since this run — the results below are
+                for the previous text. Run again to match what is in the box now.
+              </p>
+            )}
+
             <section className="rounded-2xl border border-line bg-white p-4">
               <h2 className="font-semibold">Uncertainty band</h2>
               <p className="mt-1 text-sm text-stone">
@@ -211,6 +254,7 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
               routed={routed}
               labels={definition.labels}
               band={band}
+              stale={stale}
             />
           </>
         )}
@@ -221,6 +265,7 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
         onPick={(sample) => {
           setState(sample.text);
           setAnswers(null);
+          setAnsweredState(null);
           setElapsed(null);
         }}
         disabled={running}

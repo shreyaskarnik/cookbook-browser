@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { FakeEngine } from "../../engine/fake";
 import ConsistencyNoulCard from "./ConsistencyNoulCard";
 
@@ -9,6 +9,10 @@ const pinned = new FakeEngine({
   covered: 0.95,
   exclusionApplies: 0.5,
   fraudIndicators: 0.02,
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("ConsistencyNoulCard", () => {
@@ -46,10 +50,12 @@ describe("ConsistencyNoulCard", () => {
   });
 
   it("moves a row to review when the band widens, without re-running the model", async () => {
+    const decideSpy = vi.spyOn(pinned, "decide");
     render(<ConsistencyNoulCard engine={pinned} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
     const row = await screen.findByTestId("answer-covered");
     expect(row).toHaveAttribute("data-verdict", "yes");
+    expect(decideSpy).toHaveBeenCalledTimes(1);
 
     // A range input takes a change event; it cannot be cleared and typed into.
     fireEvent.change(screen.getByRole("slider", { name: /upper bound/i }), {
@@ -60,6 +66,8 @@ describe("ConsistencyNoulCard", () => {
       "data-verdict",
       "uncertain"
     );
+    // The row moved, but the model was never asked again.
+    expect(decideSpy).toHaveBeenCalledTimes(1);
   });
 
   it("lets a visitor replace the state with their own text", async () => {
@@ -91,5 +99,125 @@ describe("ConsistencyNoulCard", () => {
     render(<ConsistencyNoulCard engine={broken} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
     expect(await screen.findByText(/ran out of memory/)).toBeInTheDocument();
+  });
+
+  it("marks the answers stale once the claim text changes, but keeps them visible and re-routable", async () => {
+    render(<ConsistencyNoulCard engine={pinned} />);
+    await userEvent.click(screen.getByRole("button", { name: /run/i }));
+    const row = await screen.findByTestId("answer-covered");
+    expect(row).toHaveAttribute("data-verdict", "yes");
+
+    const state = screen.getByRole("textbox", { name: /state/i });
+    await userEvent.type(state, " Addendum: nothing about this changes the facts.");
+
+    // The previous run's answers are still on screen, but marked as no longer
+    // describing what is in the box.
+    expect(await screen.findByTestId("answer-covered")).toBeInTheDocument();
+    expect(screen.getAllByText(/stale/i).length).toBeGreaterThan(0);
+
+    // Re-routing stale answers by dragging the band is still reasonable, and
+    // must still work without asking the model again.
+    fireEvent.change(screen.getByRole("slider", { name: /upper bound/i }), {
+      target: { value: "0.99" },
+    });
+    expect(await screen.findByTestId("answer-covered")).toHaveAttribute(
+      "data-verdict",
+      "uncertain"
+    );
+  });
+
+  it("keeps the previous run's answers, marked stale, through a failed re-run rather than implying they are current", async () => {
+    let calls = 0;
+    const flaky = {
+      runtime: pinned.runtime,
+      decide: async (
+        stateArg: Parameters<typeof pinned.decide>[0],
+        questions: Parameters<typeof pinned.decide>[1]
+      ) => {
+        calls += 1;
+        if (calls === 1) return pinned.decide(stateArg, questions);
+        throw new Error("The model ran out of memory.");
+      },
+      countTokens: (stateArg: string) => pinned.countTokens(stateArg),
+      dispose: async () => {},
+    };
+
+    render(<ConsistencyNoulCard engine={flaky} />);
+    await userEvent.click(screen.getByRole("button", { name: /run/i }));
+    const row = await screen.findByTestId("answer-covered");
+    expect(row).toHaveAttribute("data-verdict", "yes");
+
+    const state = screen.getByRole("textbox", { name: /state/i });
+    await userEvent.type(state, " A late addition to the file.");
+    expect(screen.getAllByText(/stale/i).length).toBeGreaterThan(0);
+
+    await userEvent.click(screen.getByRole("button", { name: /run again/i }));
+
+    expect(await screen.findByText(/ran out of memory/)).toBeInTheDocument();
+    // The failed attempt did not erase the previous, still-stale results.
+    expect(screen.getByTestId("answer-covered")).toHaveAttribute("data-verdict", "yes");
+    expect(screen.getAllByText(/stale/i).length).toBeGreaterThan(0);
+  });
+
+  it("shows the exact token count once priming resolves, without a stale reply for older text overwriting a newer count", async () => {
+    vi.useFakeTimers();
+    try {
+      // Each call to primeTokenCount gets its own held-open resolver, in call
+      // order — this is what lets the test control arrival order deterministically,
+      // the same approach Task 6's LoadGate.test.tsx uses for its out-of-order guard.
+      const pending: Array<{ text: string; resolve: (count: number) => void }> = [];
+      const primed = {
+        runtime: { engine: "local" as const, model: "x", device: "x", dtype: "x" },
+        decide: async () => ({}),
+        countTokens: (text: string) => text.split(/\s+/).filter(Boolean).length,
+        primeTokenCount: (text: string) =>
+          new Promise<number>((resolve) => {
+            pending.push({ text, resolve });
+          }),
+        dispose: async () => {},
+      };
+
+      render(<ConsistencyNoulCard engine={primed} />);
+
+      // The synchronous estimate shows immediately, marked as approximate.
+      expect(screen.getByText(/^≈\d+ tokens$/)).toBeInTheDocument();
+
+      // Let the debounce for the initial text fire, but leave its reply pending —
+      // this stands in for a slow reply that arrives after the text has moved on.
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      expect(pending).toHaveLength(1);
+
+      // Edit the claim before that first count comes back.
+      const state = screen.getByRole("textbox", { name: /state/i });
+      fireEvent.change(state, { target: { value: "a short claim" } });
+      expect(screen.getByText("≈3 tokens")).toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      expect(pending).toHaveLength(2);
+
+      // The newer text's exact count arrives and replaces the estimate. `act`
+      // has already flushed the resulting render, so a plain (synchronous) query
+      // is used rather than `findBy*` — its polling relies on real timers, which
+      // never elapse while fake timers are installed.
+      await act(async () => {
+        pending[1].resolve(42);
+      });
+      expect(screen.getByText("42 tokens")).toBeInTheDocument();
+      expect(screen.queryByText(/≈/)).not.toBeInTheDocument();
+
+      // The stale reply for the text that is no longer on screen arrives late.
+      // It must not overwrite the current, newer count.
+      await act(async () => {
+        pending[0].resolve(999);
+      });
+      expect(screen.getByText("42 tokens")).toBeInTheDocument();
+      expect(screen.queryByText(/999/)).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

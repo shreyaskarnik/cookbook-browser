@@ -19,7 +19,7 @@
 - **Nothing leaves the tab.** No analytics, no telemetry, no error reporting service, no font or asset fetched from a host other than Hugging Face (model weights) and Google Fonts (typeface). State text is never logged, never put in a URL, never persisted anywhere but React state.
 - **Versions are floors, matched to the reference implementation:** `open-jev@^0.1.2`, `@huggingface/transformers@^4.3.0`, `react@^19.3.0`, `vite@^8.3.0`, `tailwindcss@^4.3.3`, `typescript@^5.9.3`. Node 24, pnpm 11.1.1.
 - **Vite config is not optional:** `optimizeDeps.exclude: ["@huggingface/transformers"]` and `build.target: "esnext"`. Without both, the ONNX runtime fails at runtime.
-- **Repo root:** `/Users/shreyas/work/rnd/jev-mario/cookbook-browser/`, its own git repo (the parent directory is not one).
+- **Repo:** `/Users/shreyas/work/rnd/jev-mario/cookbook-browser`, pushed to `github.com/shreyaskarnik/cookbook-browser` (public). The copies of this plan and the design under `docs/superpowers/` in that repo are canonical; the copies in the parent directory are historical.
 
 ## Scope
 
@@ -91,10 +91,12 @@ Tests live beside their subject as `*.test.ts(x)`.
 
 - [ ] **Step 1: Create the repo and install dependencies**
 
+The repo already exists at `/Users/shreyas/work/rnd/jev-mario/cookbook-browser`, is on
+`main`, and has `origin` set to `github.com/shreyaskarnik/cookbook-browser` with the design
+and this plan committed. Do not re-create it; work inside it.
+
 ```bash
-mkdir -p /Users/shreyas/work/rnd/jev-mario/cookbook-browser
 cd /Users/shreyas/work/rnd/jev-mario/cookbook-browser
-git init
 pnpm init
 pnpm add react@^19.3.0 react-dom@^19.3.0 open-jev@^0.1.2 @huggingface/transformers@^4.3.0 lucide-react@^1.47.0
 pnpm add -D typescript@^5.9.3 vite@^8.3.0 @vitejs/plugin-react@^6.1.1 tailwindcss@^4.3.3 @tailwindcss/vite@^4.3.3 \

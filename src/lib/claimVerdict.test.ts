@@ -11,8 +11,7 @@ const entry = (key: string, verdict: RoutedQuestion["verdict"]): RoutedQuestion 
 describe("claimVerdict", () => {
   it("actions a claim where nothing is uncertain", () => {
     const verdict = claimVerdict([entry("covered", "yes"), entry("fraudIndicators", "no")]);
-    expect(verdict.outcome).toBe("auto");
-    expect(verdict.reason).toMatch(/outside the band/);
+    expect(verdict).toEqual({ outcome: "auto", elsewhereUncertain: 0 });
   });
 
   it("escalates when a critical question is uncertain", () => {
@@ -21,16 +20,20 @@ describe("claimVerdict", () => {
     ).toBe("review");
   });
 
-  it("names the one critical question that is uncertain", () => {
-    expect(claimVerdict([entry("fraudIndicators", "uncertain")]).reason).toBe(
-      "fraudIndicators is uncertain."
-    );
+  it("names the one critical question that is uncertain — by key, for the card to look up its label", () => {
+    const verdict = claimVerdict([entry("fraudIndicators", "uncertain")]);
+    expect(verdict).toEqual({ outcome: "review", criticalUncertainKeys: ["fraudIndicators"] });
   });
 
-  it("counts them when several critical questions are uncertain", () => {
-    expect(
-      claimVerdict([entry("covered", "uncertain"), entry("manualReview", "uncertain")]).reason
-    ).toBe("2 critical questions are uncertain.");
+  it("lists them all when several critical questions are uncertain", () => {
+    const verdict = claimVerdict([
+      entry("covered", "uncertain"),
+      entry("manualReview", "uncertain"),
+    ]);
+    expect(verdict).toEqual({
+      outcome: "review",
+      criticalUncertainKeys: ["covered", "manualReview"],
+    });
   });
 
   it("still actions a claim when only non-critical questions are uncertain — the point of the rule", () => {
@@ -39,18 +42,16 @@ describe("claimVerdict", () => {
       entry("lineItemsAddUp", "uncertain"),
       entry("subrogation", "uncertain"),
     ]);
-    expect(verdict.outcome).toBe("auto");
-    expect(verdict.reason).toBe("2 questions are uncertain, but none of the critical ones.");
+    expect(verdict).toEqual({ outcome: "auto", elsewhereUncertain: 2 });
   });
 
-  it("uses the singular for one non-critical uncertainty", () => {
-    expect(
-      claimVerdict([entry("covered", "yes"), entry("subrogation", "uncertain")]).reason
-    ).toBe("1 question is uncertain, but none of the critical ones.");
+  it("counts a single non-critical uncertainty the same way as several", () => {
+    const verdict = claimVerdict([entry("covered", "yes"), entry("subrogation", "uncertain")]);
+    expect(verdict).toEqual({ outcome: "auto", elsewhereUncertain: 1 });
   });
 
   it("actions an empty list rather than throwing", () => {
-    expect(claimVerdict([]).outcome).toBe("auto");
+    expect(claimVerdict([])).toEqual({ outcome: "auto", elsewhereUncertain: 0 });
   });
 
   it("keeps every critical key among the card's fourteen question keys", async () => {
@@ -58,5 +59,13 @@ describe("claimVerdict", () => {
     for (const key of CRITICAL_KEYS) {
       expect(Object.keys(definition.questions)).toContain(key);
     }
+  });
+
+  it("never returns a raw key as English — it hands back keys, not sentences", () => {
+    const verdict = claimVerdict([entry("fraudIndicators", "uncertain")]);
+    expect(verdict).not.toHaveProperty("reason");
+    expect(verdict.outcome === "review" && verdict.criticalUncertainKeys).toEqual([
+      "fraudIndicators",
+    ]);
   });
 });

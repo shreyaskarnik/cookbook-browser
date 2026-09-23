@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { LoadProgress, OpenJevInfo } from "open-jev";
-import { createLocalEngine, inspectModel, isWebGpuAvailable } from "../../engine";
+import { createLocalEngine, describeError, inspectModel, isWebGpuAvailable } from "../../engine";
 import type { Engine } from "../../engine";
 import { formatBytes, formatPercent } from "../../lib/format";
 import ModelChoice from "./ModelChoice";
@@ -71,7 +71,10 @@ export default function LoadGate({ onReady }: { onReady: (engine: Engine) => voi
     try {
       onReady(await createLocalEngine(alias, setProgress));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
+      // `describeError` guarantees a non-empty sentence — this is rendered
+      // to the visitor, and a rejection here (e.g. a `Worker` constructor
+      // throw) never round-trips through the worker's own error handling.
+      setError(describeError(caught));
       setLoading(false);
     }
   };

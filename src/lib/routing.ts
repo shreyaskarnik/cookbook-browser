@@ -66,14 +66,28 @@ export function bandSummary(routed: RoutedQuestion[]): {
   };
 }
 
-/** What the card says about the claim as a whole, above the per-question rows. */
-export type ClaimVerdict = {
-  /** "auto" renders green and says the claim can be actioned without a person.
-   *  "review" renders amber and says a person needs to look at it. */
-  outcome: "auto" | "review";
-  /** One short sentence shown beside the outcome. */
-  reason: string;
-};
+/** What the card says about the claim as a whole, above the per-question rows.
+ *  This is structured facts, not English: `routing.ts` is pure logic over
+ *  probabilities and has no access to the cookbook's question labels, so it
+ *  cannot compose a sentence itself without either reaching for labels it
+ *  should not have or emitting raw camelCase keys into visitor-facing copy.
+ *  The card composes the sentence, substituting `definition.labels[key]` for
+ *  each key here. */
+export type ClaimVerdict =
+  | {
+      /** Renders green and says the claim can be actioned without a person. */
+      outcome: "auto";
+      /** Count of non-critical questions that are uncertain — zero means
+       *  every question landed outside the band. */
+      elsewhereUncertain: number;
+    }
+  | {
+      /** Renders amber and says a person needs to look at it. */
+      outcome: "review";
+      /** The critical keys (see `CRITICAL_KEYS`) that are uncertain. Always
+       *  non-empty when `outcome` is "review". */
+      criticalUncertainKeys: string[];
+    };
 
 /**
  * The questions a person must be sure about before a payout goes out: whether the
@@ -98,19 +112,10 @@ export function claimVerdict(routed: RoutedQuestion[]): ClaimVerdict {
   );
   if (critical.length === 0) {
     const elsewhere = routed.filter((entry) => entry.verdict === "uncertain").length;
-    return {
-      outcome: "auto",
-      reason:
-        elsewhere === 0
-          ? "Every question landed outside the band."
-          : `${elsewhere} question${elsewhere === 1 ? " is" : "s are"} uncertain, but none of the critical ones.`,
-    };
+    return { outcome: "auto", elsewhereUncertain: elsewhere };
   }
   return {
     outcome: "review",
-    reason:
-      critical.length === 1
-        ? `${critical[0].key} is uncertain.`
-        : `${critical.length} critical questions are uncertain.`,
+    criticalUncertainKeys: critical.map((entry) => entry.key),
   };
 }

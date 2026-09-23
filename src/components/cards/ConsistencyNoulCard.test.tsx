@@ -101,6 +101,69 @@ describe("ConsistencyNoulCard", () => {
     expect(await screen.findByText(/ran out of memory/)).toBeInTheDocument();
   });
 
+  it("still shows a non-empty sentence when a decision rejects with no message", async () => {
+    const broken = {
+      runtime: { engine: "local" as const, model: "x", device: "x", dtype: "x" },
+      decide: async () => {
+        throw new Error("");
+      },
+      countTokens: () => 10,
+      dispose: async () => {},
+    };
+    render(<ConsistencyNoulCard engine={broken} />);
+    await userEvent.click(screen.getByRole("button", { name: /run/i }));
+    expect(
+      await screen.findByText(/The model failed without a message\./)
+    ).toBeInTheDocument();
+  });
+
+  it("clears a failure banner from a previous sample when a new sample is picked", async () => {
+    const broken = {
+      runtime: { engine: "local" as const, model: "x", device: "x", dtype: "x" },
+      decide: async () => {
+        throw new Error("The model ran out of memory.");
+      },
+      countTokens: () => 10,
+      dispose: async () => {},
+    };
+    render(<ConsistencyNoulCard engine={broken} />);
+    await userEvent.click(screen.getByRole("button", { name: /run/i }));
+    expect(await screen.findByText(/ran out of memory/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /straightforward rear-end/i }));
+
+    expect(screen.queryByText(/ran out of memory/)).not.toBeInTheDocument();
+  });
+
+  it("dims the claim verdict the same way stale rows are dimmed, so the verdict does not out-assert the rows below it", async () => {
+    render(<ConsistencyNoulCard engine={pinned} />);
+    await userEvent.click(screen.getByRole("button", { name: /run/i }));
+    const verdict = await screen.findByTestId("claim-verdict");
+    expect(verdict).toHaveAttribute("data-stale", "false");
+    expect(verdict.className).not.toMatch(/opacity-50/);
+
+    const state = screen.getByRole("textbox", { name: /state/i });
+    await userEvent.type(state, " Addendum: nothing about this changes the facts.");
+
+    expect(verdict).toHaveAttribute("data-stale", "true");
+    expect(verdict.className).toMatch(/opacity-50/);
+  });
+
+  it("shows the human label, not the raw key, when a single critical question is uncertain", async () => {
+    const engine = new FakeEngine({
+      covered: 0.95,
+      exclusionApplies: 0.5,
+      fraudIndicators: 0.02,
+      manualReview: 0.02,
+    });
+    render(<ConsistencyNoulCard engine={engine} />);
+    await userEvent.click(screen.getByRole("button", { name: /run/i }));
+    expect(
+      await screen.findByText(/Exclusion applies is uncertain\./)
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/exclusionApplies/)).not.toBeInTheDocument();
+  });
+
   it("marks the answers stale once the claim text changes, but keeps them visible and re-routable", async () => {
     render(<ConsistencyNoulCard engine={pinned} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));

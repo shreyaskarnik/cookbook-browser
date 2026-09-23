@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { docsUrl, getDefinition, getEntry } from "../../cookbooks";
 import type { Answer, Engine, NoulAnswer } from "../../engine";
+import { describeError } from "../../engine";
 import { formatDuration, formatPercent } from "../../lib/format";
 import {
   DEFAULT_BAND,
@@ -9,6 +10,7 @@ import {
   clampBand,
   routeAll,
 } from "../../lib/routing";
+import type { ClaimVerdict } from "../../lib/routing";
 import AnswersPane from "../panes/AnswersPane";
 import QuestionsPane from "../panes/QuestionsPane";
 import SamplesRail from "../panes/SamplesRail";
@@ -32,6 +34,24 @@ function assertNoulAnswers(answers: Record<string, Answer>): Record<string, Noul
     }
   }
   return answers as Record<string, NoulAnswer>;
+}
+
+/** `claimVerdict` hands back the offending keys, not English — `routing.ts` is
+ *  pure logic over probabilities and has no access to the cookbook's labels.
+ *  The card composes the sentence here, substituting the human label for each
+ *  key, so a visitor never sees a raw camelCase question key. Wording matches
+ *  what `routing.ts` used to produce itself. */
+function describeVerdict(verdict: ClaimVerdict, labels: Record<string, string>): string {
+  if (verdict.outcome === "auto") {
+    const { elsewhereUncertain } = verdict;
+    return elsewhereUncertain === 0
+      ? "Every question landed outside the band."
+      : `${elsewhereUncertain} question${elsewhereUncertain === 1 ? " is" : "s are"} uncertain, but none of the critical ones.`;
+  }
+  const { criticalUncertainKeys } = verdict;
+  return criticalUncertainKeys.length === 1
+    ? `${labels[criticalUncertainKeys[0]]} is uncertain.`
+    : `${criticalUncertainKeys.length} critical questions are uncertain.`;
 }
 
 export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
@@ -109,7 +129,16 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
       // underneath a failed attempt — any answers already on screen are still
       // correct for it and are left in place; the error explains what happened
       // to this attempt, not that the previous results are wrong.
-      setError(caught instanceof Error ? caught.message : String(caught));
+      //
+      // `elapsed`, though, describes a specific request-response round trip.
+      // A failed attempt never completed one, so the previous run's timing is
+      // cleared rather than left sitting beside the new error — otherwise it
+      // reads as though it timed the attempt that just failed.
+      setElapsed(null);
+      // `describeError` guarantees a non-empty sentence — this is rendered
+      // to the visitor, and a rejection here need not have round-tripped
+      // through the worker's own error handling to reach this catch.
+      setError(describeError(caught));
     } finally {
       setRunning(false);
     }
@@ -226,7 +255,11 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
                   </span>
                 </label>
               </div>
-              <p className="mt-3 text-sm">
+              <p
+                data-testid="claim-verdict"
+                data-stale={stale ? "true" : "false"}
+                className={`mt-3 text-sm ${stale ? "opacity-50" : ""}`}
+              >
                 <strong>{summary.uncertain}</strong> of {routed.length} questions go
                 to review; {formatPercent(summary.automatedShare)} are decided
                 automatically.
@@ -244,7 +277,9 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
                         ? "This claim needs a person."
                         : "This claim can be actioned."}
                     </span>{" "}
-                    <span className="text-stone">{verdict.reason}</span>
+                    <span className="text-stone">
+                      {describeVerdict(verdict, definition.labels)}
+                    </span>
                   </>
                 )}
               </p>
@@ -267,6 +302,9 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
           setAnswers(null);
           setAnsweredState(null);
           setElapsed(null);
+          // Otherwise a failure banner from the previous sample survives the
+          // switch, now describing a claim that was never run.
+          setError(null);
         }}
         disabled={running}
       />

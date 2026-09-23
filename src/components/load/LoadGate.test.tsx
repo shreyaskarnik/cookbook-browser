@@ -4,21 +4,25 @@ import { describe, expect, it, vi } from "vitest";
 import { FakeEngine } from "../../engine/fake";
 import LoadGate, { MODEL_OPTIONS } from "./LoadGate";
 
-vi.mock("../../engine", async () => ({
-  createLocalEngine: vi.fn(async () => new (await import("../../engine/fake")).FakeEngine()),
-  // Alias-aware, so a test can tell one model's response apart from another's —
-  // needed to prove a late reply for the previously selected model is dropped.
-  inspectModel: vi.fn(async (alias: string) => ({
-    model: `onnx-community/${alias}-ONNX`,
-    family: "kev",
-    device: "webgpu",
-    dtype: "q4f16",
-    isCached: false,
-    downloadSize: alias === "kev-4b" ? 2_300_000_000 : 340_000_000,
-    files: ["model.onnx"],
-  })),
-  isWebGpuAvailable: vi.fn(() => true),
-}));
+vi.mock("../../engine", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    createLocalEngine: vi.fn(async () => new (await import("../../engine/fake")).FakeEngine()),
+    // Alias-aware, so a test can tell one model's response apart from another's —
+    // needed to prove a late reply for the previously selected model is dropped.
+    inspectModel: vi.fn(async (alias: string) => ({
+      model: `onnx-community/${alias}-ONNX`,
+      family: "kev",
+      device: "webgpu",
+      dtype: "q4f16",
+      isCached: false,
+      downloadSize: alias === "kev-4b" ? 2_300_000_000 : 340_000_000,
+      files: ["model.onnx"],
+    })),
+    isWebGpuAvailable: vi.fn(() => true),
+  };
+});
 
 describe("LoadGate", () => {
   it("offers the three models with 0.6b first", () => {
@@ -54,6 +58,16 @@ describe("LoadGate", () => {
     render(<LoadGate onReady={vi.fn()} />);
     await userEvent.click(screen.getByRole("button", { name: /load the model/i }));
     expect(await screen.findByText(/WebGPU device lost/)).toBeInTheDocument();
+  });
+
+  it("still shows a non-empty sentence when the rejection carries no message — e.g. a Worker constructor throw that never reaches the worker's own error handling", async () => {
+    const engineModule = await import("../../engine");
+    vi.mocked(engineModule.createLocalEngine).mockRejectedValueOnce(new Error(""));
+    render(<LoadGate onReady={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: /load the model/i }));
+    expect(
+      await screen.findByText(/The model failed without a message\./)
+    ).toBeInTheDocument();
   });
 
   it("clears a stale error when the selected model changes", async () => {

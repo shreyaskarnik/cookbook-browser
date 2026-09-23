@@ -232,6 +232,11 @@ export type RoutedItem = {
   disposition: Disposition;
   /** One short phrase a visitor can read, e.g. "89%" or "Escalate (41%)". */
   detail: string;
+  /** The 0..1 quantity this rule thresholded on, so the card can draw a bar.
+   *  For a noul that is its probability; for a choice, the winning option's
+   *  confidence; for a score, its normalized position. Every rule has one,
+   *  because every rule compares something against a threshold. */
+  value: number;
 };
 
 /** How one cookbook turns answers into dispositions. Cookbooks differ: a
@@ -258,6 +263,7 @@ export function bandRule(low: number, high: number): RoutingRule {
         label: labels[key] ?? key,
         disposition: inside ? "review" : "auto",
         detail: percent(answer.probability),
+        value: answer.probability,
       };
     });
 }
@@ -275,6 +281,7 @@ export function minimumConfidenceRule(floor: number): RoutingRule {
         label: labels[key] ?? key,
         disposition: answer.confidence >= floor ? "auto" : "review",
         detail: `${answer.choice} (${percent(answer.confidence)})`,
+        value: answer.confidence,
       };
     });
 }
@@ -516,6 +523,43 @@ const routed = useMemo(
 ```
 
 The band slider still needs the band, because moving it is the card's whole point. Keep `band` as card state and pass it through: for this cookbook the rule is `bandRule(band.low, band.high)`, rebuilt as the slider moves. Note in a comment that the slider is specific to band-routed cookbooks and that a cookbook with a different rule shows different controls — that is expected, not a gap.
+
+- [ ] **Step 3b: Convert `AnswersPane` to render `RoutedItem`**
+
+This is the step the plan originally missed. `src/components/panes/AnswersPane.tsx` currently takes
+`RoutedQuestion[]` from `src/lib/routing` — `{ key, probability, verdict }` — and draws each row's
+bar from `probability`, its band overlay from a required `band` prop, and its `data-verdict`
+attribute from `verdict`. None of those survive the move to `RoutedItem`.
+
+Change its props to:
+
+```tsx
+export default function AnswersPane({
+  routed,
+  band,
+  stale,
+}: {
+  routed: RoutedItem[];
+  /** Only band-routed cookbooks have a band to draw behind the bars. Others
+   *  pass nothing and get no overlay — the bar and the disposition carry the
+   *  meaning on their own. */
+  band?: { low: number; high: number };
+  stale: boolean;
+}) {
+```
+
+Per row: draw the bar from `entry.value`, render `entry.label` (not a lookup — the rule already
+resolved it), render `entry.detail` as the right-hand text, and emit `data-disposition={entry.disposition}`
+in place of `data-verdict`. Render the band overlay only when `band` is supplied. Colour by
+disposition: `auto` reads as settled, `review` as needing attention — reuse the existing green/amber
+rather than inventing a third palette.
+
+`labels` is no longer needed as a prop; delete it if present.
+
+Update the nine existing assertions on `data-verdict` in `ConsistencyNoulCard.test.tsx` to
+`data-disposition`, mapping `"yes"` and `"no"` to `"auto"` and `"uncertain"` to `"review"`. That
+mapping is the whole vocabulary change: card one previously named the *answer*, and the shared
+vocabulary names what *happens to* the answer, which is what every cookbook has in common.
 
 - [ ] **Step 4: Render the requirement banner**
 
@@ -836,6 +880,7 @@ export function hazardRule(
           label: labels[key] ?? key,
           disposition: "auto" as const,
           detail: answer.level,
+          value: answer.normalized,
         };
       }
       if (answer.type !== "noul") {
@@ -843,7 +888,7 @@ export function hazardRule(
       }
       const p = answer.probability;
       if (p >= action) {
-        return { key, label: labels[key] ?? key, disposition: "auto" as const, detail: `${percent(p)} — block` };
+        return { key, label: labels[key] ?? key, disposition: "auto" as const, detail: `${percent(p)} — block`, value: p };
       }
       if (p >= review) {
         return {
@@ -851,9 +896,10 @@ export function hazardRule(
           label: labels[key] ?? key,
           disposition: "review" as const,
           detail: severe ? `${percent(p)} — block (severity)` : `${percent(p)} — review`,
+          value: p,
         };
       }
-      return { key, label: labels[key] ?? key, disposition: "auto" as const, detail: percent(p) };
+      return { key, label: labels[key] ?? key, disposition: "auto" as const, detail: percent(p), value: p };
     });
   };
 }

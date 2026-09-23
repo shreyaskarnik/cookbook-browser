@@ -37,20 +37,27 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
 export default function LoadGate({ onReady }: { onReady: (engine: Engine) => void }) {
   const [alias, setAlias] = useState(MODEL_OPTIONS[0].alias);
   const [info, setInfo] = useState<OpenJevInfo | null>(null);
+  /** Whether the size lookup itself failed, distinct from "still in flight"
+   *  (info === null covers both, and collapsing them once made a failed lookup
+   *  read as a permanent "Checking…"). */
+  const [infoFailed, setInfoFailed] = useState(false);
   const [progress, setProgress] = useState<LoadProgress | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const webgpu = isWebGpuAvailable();
+  const selected = MODEL_OPTIONS.find((option) => option.alias === alias) ?? MODEL_OPTIONS[0];
 
   useEffect(() => {
     let current = true;
     setInfo(null);
+    setInfoFailed(false);
+    setError(null); // an error from the previous model must not linger on this one
     inspectModel(alias)
       .then((result) => {
         if (current) setInfo(result);
       })
       .catch(() => {
-        if (current) setInfo(null); // the size line is omitted rather than wrong
+        if (current) setInfoFailed(true);
       });
     return () => {
       current = false;
@@ -60,6 +67,7 @@ export default function LoadGate({ onReady }: { onReady: (engine: Engine) => voi
   const load = async () => {
     setLoading(true);
     setError(null);
+    setProgress(null); // a retry must not keep showing the previous attempt's percentage
     try {
       onReady(await createLocalEngine(alias, setProgress));
     } catch (caught) {
@@ -93,7 +101,9 @@ export default function LoadGate({ onReady }: { onReady: (engine: Engine) => voi
           ? info.isCached
             ? `Already downloaded — loads from this browser's cache. Runs on ${info.device}.`
             : `${formatBytes(info.downloadSize)} to download, once. Runs on ${info.device}.`
-          : "Checking the download size…"}
+          : infoFailed
+            ? `About ${formatBytes(selected.approximateBytes)} to download, once.`
+            : "Checking the download size…"}
       </p>
 
       {!webgpu && (

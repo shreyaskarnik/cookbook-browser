@@ -120,7 +120,7 @@ pnpm add -D typescript@^5.9.3 vite@^8.3.0 @vitejs/plugin-react@^6.1.1 tailwindcs
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "smoke": "node --experimental-strip-types scripts/smoke.ts",
+    "smoke": "vitest run --config vitest.smoke.config.ts",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\""
   }
 }
@@ -1820,33 +1820,40 @@ This downloads about 340 MB, so it is never part of `pnpm test` or CI. It proves
 /**
  * Real-model check, run by hand: `pnpm smoke`.
  * Downloads kev-0.6b (~340 MB) and runs the card's fourteen questions on CPU.
- * Not part of `pnpm test` — CI must never download weights.
+ * Never part of `pnpm test` — CI must not download weights.
  */
 import { OpenJev } from "open-jev";
-import consistencyNoul from "../src/cookbooks/consistencyNoul.ts";
+import { expect, it } from "vitest";
+import definition from "../src/cookbooks/consistencyNoul";
 
-const jev = await OpenJev.load({
-  model: "kev-0.6b",
-  device: "cpu",
-  onProgress: ({ progress }) =>
-    process.stdout.write(`\rdownloading ${Math.round(progress * 100)}%`),
-});
-process.stdout.write("\n");
+it("answers the cookbook's fourteen questions on a real claim", async () => {
+  const jev = await OpenJev.load({ model: "kev-0.6b", device: "cpu" });
+  const lines: string[] = [`runtime: ${JSON.stringify(jev.runtime)}`];
 
-const sample = consistencyNoul.samples[0];
-const started = performance.now();
-const answers = await jev.decide(sample.text, consistencyNoul.questions);
-const elapsed = performance.now() - started;
+  for (const sample of definition.samples) {
+    const started = performance.now();
+    const answers = await jev.decide(sample.text, definition.questions);
+    const ms = performance.now() - started;
+    const probabilities: number[] = [];
+    lines.push(
+      `\n--- ${sample.label} (${jev.countTokens(sample.text)} state tokens, ${Math.round(ms)} ms) ---`
+    );
+    for (const [key, answer] of Object.entries(answers)) {
+      if (answer.type !== "noul") throw new Error(`${key} is not a noul`);
+      probabilities.push(answer.probability);
+      const bar = "#".repeat(Math.round(answer.probability * 24)).padEnd(24, ".");
+      lines.push(`${bar} ${(answer.probability * 100).toFixed(0).padStart(3)}%  ${key}`);
+    }
+    const spread = Math.max(...probabilities) - Math.min(...probabilities);
+    const inBand = probabilities.filter((p) => p >= 0.3 && p <= 0.7).length;
+    lines.push(`spread ${spread.toFixed(3)} | in band ${inBand}/14 | auto ${14 - inBand}/14`);
+  }
+  await jev.dispose();
 
-for (const [key, answer] of Object.entries(answers)) {
-  if (answer.type !== "noul") throw new Error(`${key} is not a noul`);
-  const bar = "#".repeat(Math.round(answer.probability * 20)).padEnd(20, ".");
-  console.log(`${bar} ${(answer.probability * 100).toFixed(0).padStart(3)}%  ${key}`);
-}
-console.log(
-  `\n14 questions, one request, ${Math.round(elapsed)} ms on ${jev.runtime.device}`
-);
-await jev.dispose();
+  // Deliberately forced failure: this check exists to print its numbers for a human to read,
+  // not to assert a threshold. Read the diff output, then decide.
+  expect(lines.join("\n")).toBe("PRINT_ME");
+}, 1_800_000);
 ```
 
 - [ ] **Step 7: Run the tests and the build**

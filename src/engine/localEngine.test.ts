@@ -163,13 +163,17 @@ describe("LocalEngine.send() when postMessage throws", () => {
       )
     ).rejects.toThrow("DataCloneError: value could not be cloned");
 
-    // There is no public way to inspect the pending map directly, so this
-    // asserts the closest observable consequence of a leaked entry: a later,
-    // ordinary request still completes normally. Request ids are monotonic
-    // and never reused, so this does not by itself prove the failed entry was
-    // deleted — only that a leaked entry (if one remained) is not corrupting
-    // subsequent traffic. See the report for why this was judged the honest
-    // option over adding a test-only accessor to the class.
+    // Measured, not reasoned: this test was run against the code from before
+    // the `pending.delete(id)` fix and passed unchanged, so it does NOT guard
+    // that line at all. A throw inside a Promise executor auto-rejects with
+    // the original error regardless of any try/catch, and request ids are
+    // monotonic and never reused, so a leaked entry cannot collide with a
+    // later request — both assertions below already held pre-fix. There is no
+    // public way to inspect the pending map to test the deletion directly;
+    // the only alternative is a test-only accessor on the class, judged not
+    // worth adding to guard a harmless one-entry leak. Kept anyway because it
+    // still pins two real properties: the original error reaches the caller,
+    // and a later request is unaffected.
     const nextDecide = engine.decide("state", {
       covered: { type: "noul", instructions: "Is this covered?" },
     });

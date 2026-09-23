@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bandRule, minimumConfidenceRule } from "./routing";
+import { bandRule, hazardRule, minimumConfidenceRule } from "./routing";
 import type { Answer } from "../engine";
 
 const noul = (p: number): Answer => ({
@@ -61,5 +61,38 @@ describe("minimumConfidenceRule", () => {
   });
   it("throws naming the key when no label is provided, rather than emitting the raw key", () => {
     expect(() => route({ recommendedAction: choice("Escalate", 0.9) }, {})).toThrow(/recommendedAction/);
+  });
+});
+
+describe("hazardRule", () => {
+  const route = hazardRule(0.35, 0.7, 2.0, "severity");
+  const sev = (score: number): Answer => ({
+    type: "score", score, normalized: score / 3, level: ["none", "mild", "serious", "severe"][Math.round(score)],
+    confidence: 0.8, probabilities: { none: 0.1, mild: 0.2, serious: 0.4, severe: 0.3 },
+  });
+
+  it("leaves a hazard below the review threshold alone", () => {
+    const items = route({ jailbreak: noul(0.1), severity: sev(0) }, { jailbreak: "Jailbreak", severity: "Severity" });
+    expect(items.find((i) => i.key === "jailbreak")!.disposition).toBe("auto");
+  });
+
+  it("sends a hazard at or above the review threshold to a person", () => {
+    const items = route({ jailbreak: noul(0.4), severity: sev(0) }, { jailbreak: "Jailbreak", severity: "Severity" });
+    expect(items.find((i) => i.key === "jailbreak")!.disposition).toBe("review");
+  });
+
+  it("marks a hazard above the action threshold as actionable, not merely reviewable", () => {
+    const items = route({ jailbreak: noul(0.9), severity: sev(0) }, { jailbreak: "Jailbreak", severity: "Severity" });
+    expect(items.find((i) => i.key === "jailbreak")!.detail).toMatch(/block|action/i);
+  });
+
+  it("escalates every review to a block once severity reaches the override", () => {
+    const items = route({ jailbreak: noul(0.4), severity: sev(2.5) }, { jailbreak: "Jailbreak", severity: "Severity" });
+    expect(items.find((i) => i.key === "jailbreak")!.detail).toMatch(/block/i);
+  });
+
+  it("does not route the severity score itself as a hazard", () => {
+    const items = route({ jailbreak: noul(0.1), severity: sev(3) }, { jailbreak: "Jailbreak", severity: "Severity" });
+    expect(items.find((i) => i.key === "severity")!.disposition).toBe("auto");
   });
 });

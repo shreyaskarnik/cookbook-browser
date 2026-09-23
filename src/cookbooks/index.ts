@@ -1,11 +1,13 @@
 import { CATALOG } from "./catalog";
 import consistencyChoice from "./consistencyChoice";
 import consistencyNoul from "./consistencyNoul";
+import guardrails from "./guardrails";
 import type { CookbookDefinition, CookbookEntry } from "./types";
 
 const DEFINITIONS: Record<string, CookbookDefinition> = {
   [consistencyNoul.id]: consistencyNoul,
   [consistencyChoice.id]: consistencyChoice,
+  [guardrails.id]: guardrails,
 };
 
 /** The ids that have a real definition registered above. The catalog's

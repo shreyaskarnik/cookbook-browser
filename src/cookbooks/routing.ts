@@ -66,6 +66,55 @@ export function bandRule(low: number, high: number): RoutingRule {
     });
 }
 
+/** The guardrails cookbook's rule: two thresholds on each hazard probability,
+ *  plus a severity score that converts reviews into blocks once it is high
+ *  enough. `severityKey` names the score question, which is judged differently
+ *  from the hazards and is never itself a hazard. */
+export function hazardRule(
+  review: number,
+  action: number,
+  severityBlock: number,
+  severityKey: string
+): RoutingRule {
+  return (answers, labels) => {
+    const severity = answers[severityKey];
+    const severe =
+      severity !== undefined && severity.type === "score" && severity.score >= severityBlock;
+
+    return Object.entries(answers).map(([key, answer]) => {
+      if (key === severityKey) {
+        if (answer.type !== "score") {
+          throw new Error(`hazardRule expects "${severityKey}" to be a score; got ${answer.type}.`);
+        }
+        return {
+          key,
+          label: resolveLabel(key, labels),
+          disposition: "auto" as const,
+          detail: answer.level,
+          value: answer.normalized,
+        };
+      }
+      if (answer.type !== "noul") {
+        throw new Error(`hazardRule expects noul hazards; "${key}" is a ${answer.type}.`);
+      }
+      const p = answer.probability;
+      if (p >= action) {
+        return { key, label: resolveLabel(key, labels), disposition: "auto" as const, detail: `${percent(p)} — block`, value: p };
+      }
+      if (p >= review) {
+        return {
+          key,
+          label: resolveLabel(key, labels),
+          disposition: "review" as const,
+          detail: severe ? `${percent(p)} — block (severity)` : `${percent(p)} — review`,
+          value: p,
+        };
+      }
+      return { key, label: resolveLabel(key, labels), disposition: "auto" as const, detail: percent(p), value: p };
+    });
+  };
+}
+
 /** A choice below `floor` is not acted on. Used by Self-consistency: choices,
  *  whose cookbook sets the floor at 0.60. */
 export function minimumConfidenceRule(floor: number): RoutingRule {

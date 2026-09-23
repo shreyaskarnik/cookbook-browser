@@ -114,7 +114,7 @@ export const CATALOG: readonly CookbookEntry[] = [
     category: "How-to",
     description:
       "Screen input and output by thresholding hazard probabilities and severity levels.",
-    status: "planned",
+    status: "built",
   },
   {
     id: "sde-cascade",

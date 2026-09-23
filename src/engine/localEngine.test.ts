@@ -14,9 +14,21 @@ class StubWorker {
   onerror: ((event: ErrorEvent) => void) | null = null;
   terminated = false;
   posted: WorkerRequest[] = [];
+  private throwOnNextPost: Error | null = null;
 
   postMessage(message: WorkerRequest): void {
+    if (this.throwOnNextPost) {
+      const error = this.throwOnNextPost;
+      this.throwOnNextPost = null;
+      throw error;
+    }
     this.posted.push(message);
+  }
+
+  /** Makes the next `postMessage` throw synchronously instead of recording a
+   *  request, simulating e.g. a `DataCloneError` on an unclonable payload. */
+  failNextPostMessage(error: Error): void {
+    this.throwOnNextPost = error;
   }
 
   terminate(): void {
@@ -114,6 +126,65 @@ describe("LocalEngine after a worker crash", () => {
         })
       )
     ).rejects.toThrow(/reload the page/i);
+  });
+});
+
+describe("LocalEngine after dispose", () => {
+  it("rejects a later decide() instead of posting into a terminated worker and hanging", async () => {
+    const engine = await loadedEngine();
+
+    const disposePromise = engine.dispose();
+    const disposeRequest = worker.lastRequest("dispose");
+    worker.respond({ id: disposeRequest.id, kind: "done" });
+    await disposePromise;
+
+    await expect(
+      withTimeout(
+        engine.decide("state", {
+          covered: { type: "noul", instructions: "Is this covered?" },
+        })
+      )
+    ).rejects.toThrow(/disposed/i);
+  });
+});
+
+describe("LocalEngine.send() when postMessage throws", () => {
+  it("rejects with the original error and does not disturb a later request", async () => {
+    const engine = await loadedEngine();
+
+    const cloneError = new Error("DataCloneError: value could not be cloned");
+    worker.failNextPostMessage(cloneError);
+
+    await expect(
+      withTimeout(
+        engine.decide("state", {
+          covered: { type: "noul", instructions: "Is this covered?" },
+        })
+      )
+    ).rejects.toThrow("DataCloneError: value could not be cloned");
+
+    // There is no public way to inspect the pending map directly, so this
+    // asserts the closest observable consequence of a leaked entry: a later,
+    // ordinary request still completes normally. Request ids are monotonic
+    // and never reused, so this does not by itself prove the failed entry was
+    // deleted — only that a leaked entry (if one remained) is not corrupting
+    // subsequent traffic. See the report for why this was judged the honest
+    // option over adding a test-only accessor to the class.
+    const nextDecide = engine.decide("state", {
+      covered: { type: "noul", instructions: "Is this covered?" },
+    });
+    const decideRequest = worker.lastRequest("decide");
+    worker.respond({
+      id: decideRequest.id,
+      kind: "answers",
+      answers: {
+        covered: { type: "noul", answer: true, probability: 0.9, confidence: 0.9 },
+      },
+    });
+
+    await expect(withTimeout(nextDecide)).resolves.toEqual({
+      covered: { type: "noul", answer: true, probability: 0.9, confidence: 0.9 },
+    });
   });
 });
 

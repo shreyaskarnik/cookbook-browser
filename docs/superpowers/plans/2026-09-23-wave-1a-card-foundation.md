@@ -64,11 +64,11 @@ Add to `src/components/cards/ConsistencyNoulCard.test.tsx`:
 it("cannot show a duration without answers, whatever the sequence", async () => {
   render(<ConsistencyNoulCard engine={pinned} />);
   await userEvent.click(screen.getByRole("button", { name: /run/i }));
-  expect(await screen.findByText(/in one request/)).toBeInTheDocument();
+  expect(await screen.findByText(/questions in one request/)).toBeInTheDocument();
 
   // Pick a different sample: answers and their timing must disappear together.
   await userEvent.click(screen.getByRole("button", { name: /Thin file, late report/ }));
-  expect(screen.queryByText(/in one request/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/questions in one request/)).not.toBeInTheDocument();
   expect(screen.queryByTestId("answer-covered")).not.toBeInTheDocument();
 });
 ```
@@ -83,14 +83,29 @@ Expected: PASS — the Phase 1 fix already clears both. This test pins the invar
 Replace the four separate pieces of state (`answers`, `answeredState`, `elapsed`, `error`) with one value. Put this type above the component:
 
 ```tsx
+/** One finished run. These three always travel together: a duration describes a
+ *  set of answers, and both describe one exact state string. */
+type Completed = {
+  forState: string;
+  answers: Record<string, NoulAnswer>;
+  elapsedMs: number;
+};
+
 /** Everything a run produces, in one value, so the parts cannot drift apart.
- *  `forState` lives inside the variant rather than beside it: Phase 1's stale
- *  bugs were all four-things-must-move-together with nothing forcing it. */
+ *  Phase 1's stale bugs were all four-things-must-move-together with nothing
+ *  forcing it.
+ *
+ *  `running` and `failed` carry `previous` because a failed re-run deliberately
+ *  KEEPS the prior answers on screen: the textarea is disabled while running, so
+ *  the text cannot have moved underneath the failed attempt, which means those
+ *  answers are still correct for their own text and are already marked stale if
+ *  it has since changed. Dropping them would delete a behaviour Phase 1 chose on
+ *  purpose. */
 type Run =
   | { kind: "idle" }
-  | { kind: "running" }
-  | { kind: "ok"; forState: string; answers: Record<string, NoulAnswer>; elapsedMs: number }
-  | { kind: "failed"; forState: string; message: string };
+  | { kind: "running"; previous: Completed | null }
+  | { kind: "ok"; completed: Completed }
+  | { kind: "failed"; message: string; previous: Completed | null };
 ```
 
 Inside the component: `const [run, setRun] = useState<Run>({ kind: "idle" });`
@@ -98,8 +113,16 @@ Inside the component: `const [run, setRun] = useState<Run>({ kind: "idle" });`
 Derive rather than store:
 
 ```tsx
-const answers = run.kind === "ok" ? run.answers : null;
-const stale = run.kind === "ok" && run.forState !== state;
+const completed =
+  run.kind === "ok" ? run.completed
+  : run.kind === "running" || run.kind === "failed" ? run.previous
+  : null;
+
+const answers = completed?.answers ?? null;
+const stale = completed !== null && completed.forState !== state;
+// elapsedMs reads only from "ok": a failed run shows no duration even though
+// `previous` still holds one. That is the Phase 1 invariant.
+const elapsedMs = run.kind === "ok" ? run.completed.elapsedMs : null;
 const running = run.kind === "running";
 const error = run.kind === "failed" ? run.message : null;
 ```
@@ -108,18 +131,22 @@ const error = run.kind === "failed" ? run.message : null;
 
 ```tsx
 const runCard = async () => {
-  setRun({ kind: "running" });
+  const previous =
+    run.kind === "ok" ? run.completed : run.kind === "failed" ? run.previous : null;
+  setRun({ kind: "running", previous });
   const started = performance.now();
   try {
     const result = await engine.decide(state, definition.questions);
     setRun({
       kind: "ok",
-      forState: state,
-      answers: assertNoulAnswers(result),
-      elapsedMs: performance.now() - started,
+      completed: {
+        forState: state,
+        answers: assertNoulAnswers(result),
+        elapsedMs: performance.now() - started,
+      },
     });
   } catch (caught) {
-    setRun({ kind: "failed", forState: state, message: describeError(caught) });
+    setRun({ kind: "failed", message: describeError(caught), previous });
   }
 };
 ```

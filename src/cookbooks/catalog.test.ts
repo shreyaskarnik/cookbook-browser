@@ -46,6 +46,12 @@ describe("consistencyNoul", () => {
     expect(CATALOG.some((entry) => entry.id === consistencyNoul.id)).toBe(true);
   });
 
+  it("has a catalog entry marked built", () => {
+    expect(CATALOG.find((entry) => entry.id === consistencyNoul.id)?.status).toBe(
+      "built"
+    );
+  });
+
   it("asks the cookbook's fourteen noul questions", () => {
     const keys = Object.keys(consistencyNoul.questions);
     expect(keys).toHaveLength(14);
@@ -58,6 +64,12 @@ describe("consistencyNoul", () => {
     for (const key of Object.keys(consistencyNoul.questions)) {
       expect(consistencyNoul.labels[key]).toBeTruthy();
     }
+  });
+
+  it("has labels that exactly match the questions (no orphans, no typos)", () => {
+    expect(Object.keys(consistencyNoul.labels).sort()).toEqual(
+      Object.keys(consistencyNoul.questions).sort()
+    );
   });
 
   it("ships sample states to start from", () => {

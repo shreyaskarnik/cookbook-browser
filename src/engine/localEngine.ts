@@ -14,6 +14,11 @@ type Pending = {
  *  decisions internally, so several decide() calls may be outstanding. */
 class LocalEngine implements Engine {
   private tokenCache = new Map<string, number>();
+  /** Set once this engine can no longer be used — the worker thread crashed, or
+   *  `dispose()` ran. A dead worker cannot be revived by this class: once set,
+   *  every later `send()` fails fast with this error instead of posting into a
+   *  worker that will never reply, which would otherwise hang its caller. */
+  private deadError: Error | null = null;
   /** Filled in by `create` once the worker reports what it actually loaded:
    *  the device and dtype are resolved from "auto" inside the worker. */
   runtime: EngineRuntime;
@@ -34,6 +39,7 @@ class LocalEngine implements Engine {
       type: "module",
     });
     const pending = new Map<number, Pending>();
+    const engine = new LocalEngine(model, worker, pending);
 
     worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
       const response = event.data;
@@ -49,12 +55,19 @@ class LocalEngine implements Engine {
     };
 
     worker.onerror = (event) => {
-      const error = new Error(event.message || "The model worker crashed.");
+      // A worker that raised this can't be trusted to reply to anything else,
+      // including requests not yet sent — mark the engine dead so send() fails
+      // fast from here on, rather than posting into a worker that may be gone.
+      const detail = event.message ? ` (${event.message})` : "";
+      const error = new Error(
+        `The model worker stopped unexpectedly${detail}. Reload the page to try again.`
+      );
+      engine.deadError = error;
       for (const entry of pending.values()) entry.reject(error);
       pending.clear();
+      worker.terminate();
     };
 
-    const engine = new LocalEngine(model, worker, pending);
     try {
       const ready = await engine.send({ kind: "load", model }, onProgress);
       if (ready.kind !== "ready") throw new Error("The model failed to load.");
@@ -74,10 +87,19 @@ class LocalEngine implements Engine {
     request: WorkerRequestBody,
     onProgress?: (progress: LoadProgress) => void
   ): Promise<WorkerResponse> {
+    if (this.deadError) return Promise.reject(this.deadError);
     const id = nextRequestId();
     return new Promise<WorkerResponse>((resolve, reject) => {
       this.pending.set(id, { resolve, reject, onProgress });
-      this.worker.postMessage({ ...request, id } as WorkerRequest);
+      try {
+        this.worker.postMessage({ ...request, id } as WorkerRequest);
+      } catch (caught) {
+        // e.g. a DataCloneError on an unclonable payload: the promise already
+        // auto-rejects, but the entry must not be left behind for a reply that
+        // will never arrive.
+        this.pending.delete(id);
+        reject(caught);
+      }
     });
   }
 
@@ -118,6 +140,10 @@ class LocalEngine implements Engine {
       );
       for (const entry of this.pending.values()) entry.reject(disposedError);
       this.pending.clear();
+      // Fail fast on any later call too, not just the ones already in flight.
+      this.deadError ??= new Error(
+        "This engine has been disposed and can no longer be used."
+      );
       this.worker.terminate();
     }
   }

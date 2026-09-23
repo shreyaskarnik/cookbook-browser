@@ -101,6 +101,22 @@ describe("LocalEngine.create", () => {
   });
 });
 
+describe("LocalEngine after a worker crash", () => {
+  it("fails fast on a later send() instead of posting into a dead worker and hanging", async () => {
+    const engine = await loadedEngine();
+
+    worker.onerror?.({ message: "GPU device lost" } as ErrorEvent);
+
+    await expect(
+      withTimeout(
+        engine.decide("state", {
+          covered: { type: "noul", instructions: "Is this covered?" },
+        })
+      )
+    ).rejects.toThrow(/reload the page/i);
+  });
+});
+
 describe("Engine", () => {
   it("is satisfied by FakeEngine without it implementing the optional primeTokenCount", () => {
     // Type-only check: this line fails to compile if FakeEngine stops satisfying

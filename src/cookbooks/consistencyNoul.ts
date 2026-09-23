@@ -1,5 +1,6 @@
 import { noul } from "open-jev";
 import type { CookbookDefinition } from "./types";
+import { bandRule } from "./routing";
 
 const consistencyNoul: CookbookDefinition = {
   id: "consistency-noul",
@@ -115,6 +116,7 @@ function decide(probability) {
 const verdicts = Object.fromEntries(
   Object.entries(answers).map(([key, answer]) => [key, decide(answer.probability)])
 );`,
+  routing: bandRule(0.3, 0.7),
 };
 
 export default consistencyNoul;

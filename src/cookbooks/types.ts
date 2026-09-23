@@ -1,4 +1,5 @@
 import type { Question } from "../engine/types";
+import type { RoutingRule } from "./routing";
 
 /** The five section headings on docs.typesafe.ai/cookbooks, in their order there. */
 export type CookbookCategory =
@@ -36,4 +37,7 @@ export type CookbookDefinition = {
   labels: Record<string, string>;
   samples: Sample[];
   code: string;
+  /** How this cookbook decides what a person sees versus what is actioned.
+   *  Cookbooks genuinely differ here — see src/cookbooks/routing.ts. */
+  routing: RoutingRule;
 };

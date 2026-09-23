@@ -635,6 +635,9 @@ The cookbook (`/cookbooks/consistency_noul_cookbook`) defines the rule: below 0.
   - `type RoutedQuestion = { key: string; probability: number; verdict: Verdict }`
   - `function routeAll(answers: Record<string, NoulAnswer>, band: Band): RoutedQuestion[]`
   - `function bandSummary(routed: RoutedQuestion[]): { yes: number; no: number; uncertain: number; automatedShare: number }`
+  - `type ClaimVerdict = { outcome: "auto" | "review"; reason: string }`
+  - `const CRITICAL_KEYS: readonly string[]`
+  - `function claimVerdict(routed: RoutedQuestion[]): ClaimVerdict`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -832,51 +835,155 @@ git add -A
 git commit -m "feat: add uncertainty-band routing"
 ```
 
-- [ ] **Step 6: TODO(human) — decide what the whole claim's verdict is**
+- [ ] **Step 6: Write the claim-level verdict**
 
-`routeAll` says what happens to each of the 14 questions. The card also needs one line at the top answering "so what happens to this claim?", and that rule is a judgment call with several defensible answers, so it is left for a human to write.
+`routeAll` says what happens to each of the 14 questions. The card also needs one line at the
+top answering "so what happens to this claim?".
 
-Add to the bottom of `src/lib/routing.ts`:
+Three rules were considered. **Escalate when any question is uncertain** is the plainest reading
+of the cookbook, but with 14 questions almost every claim escalates and the headline never
+responds to the slider. **Escalate above a count** keeps the headline moving but treats "is the
+loss covered?" as interchangeable with "do the line items add up?". **Escalate only when a
+critical question is uncertain** is how a claims desk actually triages and keeps the headline
+responsive, because those probabilities are spread rather than clustered. Build the third.
+
+Append to `src/lib/routing.ts`:
 
 ```ts
 /** What the card says about the claim as a whole, above the per-question rows. */
 export type ClaimVerdict = {
-  /** "auto" renders green and says the claim can be actioned without a human.
+  /** "auto" renders green and says the claim can be actioned without a person.
    *  "review" renders amber and says a person needs to look at it. */
   outcome: "auto" | "review";
-  /** One short sentence shown beside the outcome, e.g. "3 of 14 questions are
-   *  uncertain" or "the coverage question is uncertain". */
+  /** One short sentence shown beside the outcome. */
   reason: string;
 };
 
 /**
- * TODO(human)
+ * The questions a person must be sure about before a payout goes out: whether the
+ * loss is covered at all, whether an exclusion kills it, whether it smells like
+ * fraud, and whether the file itself asks for a supervisor. Uncertainty anywhere
+ * else can be absorbed; uncertainty here cannot.
  *
- * Decide how the per-question verdicts combine into one claim-level verdict.
- *
- * The trade-off, with no single right answer:
- *
- *   - **Any uncertain question escalates.** Safest, and the plainest reading of
- *     the cookbook, but with 14 questions almost every claim escalates and the
- *     slider looks broken because the headline never changes.
- *   - **Escalate above a count or share** (say, more than two uncertain).
- *     Keeps the headline responsive to the slider, but treats "is the loss
- *     covered?" as interchangeable with "do the line items add up?".
- *   - **Escalate only when a critical question is uncertain**, with the
- *     critical keys named explicitly. Truest to how a claims desk actually
- *     works, and needs you to pick which of the 14 are critical — the
- *     candidates are `covered`, `exclusionApplies`, `fraudIndicators` and
- *     `manualReview`. Quietest headline: most claims auto-action.
- *
- * `routed` is in the cookbook's question order. Keys are the ones defined in
- * `src/cookbooks/consistencyNoul.ts` (Task 4).
+ * This is a judgment call about claims handling rather than a fact about the model.
+ * Change this list (or swap the rule in `claimVerdict` for a count over all
+ * fourteen) and the headline changes with it.
  */
+export const CRITICAL_KEYS: readonly string[] = [
+  "covered",
+  "exclusionApplies",
+  "fraudIndicators",
+  "manualReview",
+];
+
 export function claimVerdict(routed: RoutedQuestion[]): ClaimVerdict {
-  throw new Error("not implemented");
+  const critical = routed.filter(
+    (entry) => CRITICAL_KEYS.includes(entry.key) && entry.verdict === "uncertain"
+  );
+  if (critical.length === 0) {
+    const elsewhere = routed.filter((entry) => entry.verdict === "uncertain").length;
+    return {
+      outcome: "auto",
+      reason:
+        elsewhere === 0
+          ? "Every question landed outside the band."
+          : `${elsewhere} question${elsewhere === 1 ? " is" : "s are"} uncertain, but none of the critical ones.`,
+    };
+  }
+  return {
+    outcome: "review",
+    reason:
+      critical.length === 1
+        ? `${critical[0].key} is uncertain.`
+        : `${critical.length} critical questions are uncertain.`,
+  };
 }
 ```
 
-Then write `src/lib/claimVerdict.test.ts` covering the rule that was chosen, including: a claim with nothing uncertain, a claim with everything uncertain, and the boundary case that distinguishes the chosen rule from the other two. Run `pnpm test`, then commit.
+- [ ] **Step 7: Write the failing test for it**
+
+`src/lib/claimVerdict.test.ts`:
+
+```ts
+import { describe, expect, it } from "vitest";
+import { CRITICAL_KEYS, claimVerdict } from "./routing";
+import type { RoutedQuestion } from "./routing";
+
+const entry = (key: string, verdict: RoutedQuestion["verdict"]): RoutedQuestion => ({
+  key,
+  probability: verdict === "uncertain" ? 0.5 : verdict === "yes" ? 0.9 : 0.1,
+  verdict,
+});
+
+describe("claimVerdict", () => {
+  it("actions a claim where nothing is uncertain", () => {
+    const verdict = claimVerdict([entry("covered", "yes"), entry("fraudIndicators", "no")]);
+    expect(verdict.outcome).toBe("auto");
+    expect(verdict.reason).toMatch(/outside the band/);
+  });
+
+  it("escalates when a critical question is uncertain", () => {
+    expect(
+      claimVerdict([entry("covered", "uncertain"), entry("lineItemsAddUp", "yes")]).outcome
+    ).toBe("review");
+  });
+
+  it("names the one critical question that is uncertain", () => {
+    expect(claimVerdict([entry("fraudIndicators", "uncertain")]).reason).toBe(
+      "fraudIndicators is uncertain."
+    );
+  });
+
+  it("counts them when several critical questions are uncertain", () => {
+    expect(
+      claimVerdict([entry("covered", "uncertain"), entry("manualReview", "uncertain")]).reason
+    ).toBe("2 critical questions are uncertain.");
+  });
+
+  it("still actions a claim when only non-critical questions are uncertain — the point of the rule", () => {
+    const verdict = claimVerdict([
+      entry("covered", "yes"),
+      entry("lineItemsAddUp", "uncertain"),
+      entry("subrogation", "uncertain"),
+    ]);
+    expect(verdict.outcome).toBe("auto");
+    expect(verdict.reason).toBe("2 questions are uncertain, but none of the critical ones.");
+  });
+
+  it("uses the singular for one non-critical uncertainty", () => {
+    expect(
+      claimVerdict([entry("covered", "yes"), entry("subrogation", "uncertain")]).reason
+    ).toBe("1 question is uncertain, but none of the critical ones.");
+  });
+
+  it("actions an empty list rather than throwing", () => {
+    expect(claimVerdict([]).outcome).toBe("auto");
+  });
+
+  it("keeps every critical key among the card's fourteen question keys", async () => {
+    const { default: definition } = await import("../cookbooks/consistencyNoul");
+    for (const key of CRITICAL_KEYS) {
+      expect(Object.keys(definition.questions)).toContain(key);
+    }
+  });
+});
+```
+
+Note: the last test imports the cookbook definition from Task 4. If Task 4 has not landed yet,
+write the test now, let it fail on the missing import, and skip only that one case with
+`it.skip` plus a comment naming Task 4 — then un-skip it as part of Task 4.
+
+- [ ] **Step 8: Run the tests**
+
+Run: `pnpm test`
+Expected: PASS.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add -A
+git commit -m "feat: add the claim-level verdict rule"
+```
 
 ---
 

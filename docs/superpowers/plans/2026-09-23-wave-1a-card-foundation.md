@@ -131,6 +131,8 @@ const error = run.kind === "failed" ? run.message : null;
 
 ```tsx
 const runCard = async () => {
+  // No `running` branch: the Run button is disabled while a run is in flight,
+  // so a second run cannot start atop one. Deliberate, not an omission.
   const previous =
     run.kind === "ok" ? run.completed : run.kind === "failed" ? run.previous : null;
   setRun({ kind: "running", previous });
@@ -587,6 +589,27 @@ Update the nine existing assertions on `data-verdict` in `ConsistencyNoulCard.te
 `data-disposition`, mapping `"yes"` and `"no"` to `"auto"` and `"uncertain"` to `"review"`. That
 mapping is the whole vocabulary change: card one previously named the *answer*, and the shared
 vocabulary names what *happens to* the answer, which is what every cookbook has in common.
+
+- [ ] **Step 3c: Collapse `tokens`/`tokensExact` the same way**
+
+Found while reviewing Task 1: these two are the same defect shape the `Run` union just closed —
+two facts about one string (a count, and whether it is the exact one or an estimate) with nothing
+forcing them to move together. There is no live bug, because both are currently set in the same
+two places. But nothing stops a future edit from calling `setTokens` without `setTokensExact` and
+rendering "42 tokens" that is actually still an estimate, on the card that seventeen more will be
+copied from.
+
+```tsx
+/** A token count and whether it came from the real tokenizer. One value,
+ *  because "42" and "that 42 is exact" are two facts about the same string and
+ *  a count without its provenance is an estimate shown as fact. */
+type TokenCount = { value: number; exact: boolean };
+```
+
+Replace the two `useState` calls with one, update the two places that set them to set one value,
+and pass `tokens={tokenCount.value} exact={tokenCount.exact}` to `StatePane` — its props do not
+change. The debounce and the out-of-order `current` guard stay exactly as they are; this changes
+what is stored, not when.
 
 - [ ] **Step 4: Render the requirement banner**
 

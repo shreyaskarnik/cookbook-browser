@@ -117,6 +117,10 @@ const verdicts = Object.fromEntries(
   Object.entries(answers).map(([key, answer]) => [key, decide(answer.probability)])
 );`,
   routing: bandRule(0.3, 0.7),
+  requires: {
+    model: "kev-0.6b",
+    why: "Measured at 0.6B: the fourteen probabilities span 16% to 90% on the track-day claim, with seven inside the default band.",
+  },
 };
 
 export default consistencyNoul;

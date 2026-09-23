@@ -40,4 +40,8 @@ export type CookbookDefinition = {
   /** How this cookbook decides what a person sees versus what is actioned.
    *  Cookbooks genuinely differ here — see src/cookbooks/routing.ts. */
   routing: RoutingRule;
+  /** Which model this cookbook needs to produce a result worth looking at.
+   *  MEASURED, never guessed — see the spec's viability probe. `why` states
+   *  what was actually observed, so the banner can say something specific. */
+  requires: { model: "kev-0.6b" | "kev-4b"; why: string };
 };

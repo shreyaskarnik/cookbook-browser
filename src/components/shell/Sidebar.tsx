@@ -1,4 +1,4 @@
-import { CATEGORIES, entriesInCategory } from "../../cookbooks";
+import { CATEGORIES, entriesInCategory, getDefinition } from "../../cookbooks";
 
 export default function Sidebar({
   selected,
@@ -17,6 +17,9 @@ export default function Sidebar({
           <ul>
             {entriesInCategory(category).map((entry) => {
               const built = entry.status === "built";
+              // Only a built entry has a definition to consult; "soon" entries have
+              // nothing to measure yet.
+              const needs4b = built && getDefinition(entry.id).requires.model !== "kev-0.6b";
               return (
                 <li key={entry.id} data-testid="cookbook-entry">
                   <button
@@ -35,11 +38,18 @@ export default function Sidebar({
                     }`}
                   >
                     <span>{entry.title}</span>
-                    {!built && (
-                      <span className="rounded bg-line px-1.5 py-0.5 text-[0.65rem] uppercase">
-                        soon
-                      </span>
-                    )}
+                    <span className="flex items-center gap-1">
+                      {needs4b && (
+                        <span className="rounded bg-line px-1.5 py-0.5 text-[0.65rem] uppercase">
+                          4B
+                        </span>
+                      )}
+                      {!built && (
+                        <span className="rounded bg-line px-1.5 py-0.5 text-[0.65rem] uppercase">
+                          soon
+                        </span>
+                      )}
+                    </span>
                   </button>
                 </li>
               );

@@ -12,6 +12,13 @@
 
 ## Global Constraints
 
+- **Cookbook files must import types from `src/engine/types`, never from `src/engine`.** The index
+  re-exports *values* from `localEngine.ts`, which uses `Worker`. `tsconfig.node.json` compiles
+  `scripts/` with `lib: ["ES2023"]` and no DOM, and `scripts/model.smoke.ts` imports cookbook
+  definitions — so a cookbook reaching the engine index breaks `pnpm build` deterministically.
+  `src/engine/types` is types-only and safe. This binds every cookbook file, including the ones
+  Tasks 5 and 6 create.
+
 - **Never compare this model to TypeSafe's Jev**, and never put a local number beside a published benchmark — not in UI copy, not in a comment, not in a test name.
 - **No accuracy claims.** Copy describes what a thing is or does, never how good it is.
 - **Questions come verbatim from the cookbook.** Every question statement, option label and per-option criterion in this plan was fetched from the published page and must be transcribed character for character. Rewording changes what the model is asked. Where this plan quotes a threshold, that number is the cookbook's own.
@@ -249,7 +256,7 @@ Expected: FAIL — `Failed to resolve import "./routing"`.
 `src/cookbooks/routing.ts`:
 
 ```ts
-import type { Answer } from "../engine";
+import type { Answer } from "../engine/types";
 
 /** What happens to one question's answer: decided by the machine, or sent to a person. */
 export type Disposition = "auto" | "review";

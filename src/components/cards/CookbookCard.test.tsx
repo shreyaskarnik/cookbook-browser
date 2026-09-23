@@ -2,7 +2,11 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FakeEngine } from "../../engine/fake";
-import ConsistencyNoulCard from "./ConsistencyNoulCard";
+import CookbookCard from "./CookbookCard";
+
+/** Every test below renders one cookbook by id; this is the one the wave
+ *  started from, and the only card that declares a headline. */
+const NOUL = "consistency-noul";
 
 /** Three questions straddling the default band, so a widening slider must move rows. */
 const pinned = new FakeEngine({
@@ -15,47 +19,47 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("ConsistencyNoulCard", () => {
+describe("CookbookCard — Self-consistency: nouls", () => {
   it("starts with a sample state in an editable box", () => {
-    render(<ConsistencyNoulCard engine={pinned} />);
+    render(<CookbookCard id={NOUL} engine={pinned} />);
     const state = screen.getByRole("textbox", { name: /state/i }) as HTMLTextAreaElement;
     expect(state.value).toContain("Claim #AC-88213");
   });
 
   it("shows the fourteen questions before anything is run", () => {
-    render(<ConsistencyNoulCard engine={pinned} />);
+    render(<CookbookCard id={NOUL} engine={pinned} />);
     expect(screen.getByText(/Fraud indicators/)).toBeInTheDocument();
     expect(screen.getAllByTestId("question-row")).toHaveLength(14);
   });
 
   it("renders a probability per question after running", async () => {
-    render(<ConsistencyNoulCard engine={pinned} />);
+    render(<CookbookCard id={NOUL} engine={pinned} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
     const row = await screen.findByTestId("answer-covered");
     expect(within(row).getByText("Yes (95%)")).toBeInTheDocument();
   });
 
   it("routes through the cookbook's own rule, not a rule the card owns", async () => {
-    render(<ConsistencyNoulCard engine={pinned} />);
+    render(<CookbookCard id={NOUL} engine={pinned} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
     const row = await screen.findByTestId("answer-covered");
     expect(row).toHaveAttribute("data-disposition", "auto");
   });
 
   it("shows no model banner when the loaded model meets the requirement", async () => {
-    render(<ConsistencyNoulCard engine={pinned} />);
+    render(<CookbookCard id={NOUL} engine={pinned} />);
     expect(screen.queryByRole("button", { name: /load kev/i })).not.toBeInTheDocument();
   });
 
   it("puts a probability outside the band on the automatic side", async () => {
-    render(<ConsistencyNoulCard engine={pinned} />);
+    render(<CookbookCard id={NOUL} engine={pinned} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
     const row = await screen.findByTestId("answer-covered");
     expect(row).toHaveAttribute("data-disposition", "auto");
   });
 
   it("escalates a probability inside the band", async () => {
-    render(<ConsistencyNoulCard engine={pinned} />);
+    render(<CookbookCard id={NOUL} engine={pinned} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
     const row = await screen.findByTestId("answer-exclusionApplies");
     expect(row).toHaveAttribute("data-disposition", "review");
@@ -63,7 +67,7 @@ describe("ConsistencyNoulCard", () => {
 
   it("moves a row to review when the band widens, without re-running the model", async () => {
     const decideSpy = vi.spyOn(pinned, "decide");
-    render(<ConsistencyNoulCard engine={pinned} />);
+    render(<CookbookCard id={NOUL} engine={pinned} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
     const row = await screen.findByTestId("answer-covered");
     expect(row).toHaveAttribute("data-disposition", "auto");
@@ -83,7 +87,7 @@ describe("ConsistencyNoulCard", () => {
   });
 
   it("lets a visitor replace the state with their own text", async () => {
-    render(<ConsistencyNoulCard engine={pinned} />);
+    render(<CookbookCard id={NOUL} engine={pinned} />);
     const state = screen.getByRole("textbox", { name: /state/i });
     await userEvent.clear(state);
     await userEvent.type(state, "my own claim text");
@@ -91,7 +95,7 @@ describe("ConsistencyNoulCard", () => {
   });
 
   it("links to the cookbook it comes from", () => {
-    render(<ConsistencyNoulCard engine={pinned} />);
+    render(<CookbookCard id={NOUL} engine={pinned} />);
     expect(screen.getByRole("link", { name: /cookbook/i })).toHaveAttribute(
       "href",
       "https://docs.typesafe.ai/cookbooks/consistency_noul_cookbook"
@@ -108,7 +112,7 @@ describe("ConsistencyNoulCard", () => {
       // no primeTokenCount: the card must work with an engine that lacks it
       dispose: async () => {},
     };
-    render(<ConsistencyNoulCard engine={broken} />);
+    render(<CookbookCard id={NOUL} engine={broken} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
     expect(await screen.findByText(/ran out of memory/)).toBeInTheDocument();
   });
@@ -122,7 +126,7 @@ describe("ConsistencyNoulCard", () => {
       countTokens: () => 10,
       dispose: async () => {},
     };
-    render(<ConsistencyNoulCard engine={broken} />);
+    render(<CookbookCard id={NOUL} engine={broken} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
     expect(
       await screen.findByText(/The model failed without a message\./)
@@ -138,7 +142,7 @@ describe("ConsistencyNoulCard", () => {
       countTokens: () => 10,
       dispose: async () => {},
     };
-    render(<ConsistencyNoulCard engine={broken} />);
+    render(<CookbookCard id={NOUL} engine={broken} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
     expect(await screen.findByText(/ran out of memory/)).toBeInTheDocument();
 
@@ -148,7 +152,7 @@ describe("ConsistencyNoulCard", () => {
   });
 
   it("dims the claim verdict the same way stale rows are dimmed, so the verdict does not out-assert the rows below it", async () => {
-    render(<ConsistencyNoulCard engine={pinned} />);
+    render(<CookbookCard id={NOUL} engine={pinned} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
     const verdict = await screen.findByTestId("claim-verdict");
     expect(verdict).toHaveAttribute("data-stale", "false");
@@ -168,7 +172,7 @@ describe("ConsistencyNoulCard", () => {
       fraudIndicators: 0.02,
       manualReview: 0.02,
     });
-    render(<ConsistencyNoulCard engine={engine} />);
+    render(<CookbookCard id={NOUL} engine={engine} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
     expect(
       await screen.findByText(/Exclusion applies is uncertain\./)
@@ -177,7 +181,7 @@ describe("ConsistencyNoulCard", () => {
   });
 
   it("marks the answers stale once the claim text changes, but keeps them visible and re-routable", async () => {
-    render(<ConsistencyNoulCard engine={pinned} />);
+    render(<CookbookCard id={NOUL} engine={pinned} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
     const row = await screen.findByTestId("answer-covered");
     expect(row).toHaveAttribute("data-disposition", "auto");
@@ -217,7 +221,7 @@ describe("ConsistencyNoulCard", () => {
       dispose: async () => {},
     };
 
-    render(<ConsistencyNoulCard engine={flaky} />);
+    render(<CookbookCard id={NOUL} engine={flaky} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
     const row = await screen.findByTestId("answer-covered");
     expect(row).toHaveAttribute("data-disposition", "auto");
@@ -252,7 +256,7 @@ describe("ConsistencyNoulCard", () => {
         dispose: async () => {},
       };
 
-      render(<ConsistencyNoulCard engine={primed} />);
+      render(<CookbookCard id={NOUL} engine={primed} />);
 
       // The synchronous estimate shows immediately, marked as approximate.
       expect(screen.getByText(/^≈\d+ tokens$/)).toBeInTheDocument();
@@ -298,9 +302,10 @@ describe("ConsistencyNoulCard", () => {
 
   it("names the offending question and its type rather than rendering NaN bars, when an engine answers a noul question with something else", async () => {
     // Every question in this cookbook is a noul, so this cannot happen with a
-    // real engine today. It stands in for what a future cookbook built from
-    // choice or score questions would hand the card if it reused this
-    // component without also updating the guard.
+    // real engine today. The card no longer checks answer types itself — the
+    // cookbook's rule does, because only the rule knows which types it needs —
+    // so this pins that the rule's complaint reaches the visitor rather than
+    // throwing out of a render and blanking the card.
     const mismatched = {
       runtime: { engine: "local" as const, model: "x", device: "x", dtype: "x" },
       decide: async () => ({
@@ -315,13 +320,13 @@ describe("ConsistencyNoulCard", () => {
       dispose: async () => {},
     };
 
-    render(<ConsistencyNoulCard engine={mismatched} />);
+    render(<CookbookCard id={NOUL} engine={mismatched} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
 
     // The message names both the offending key and its actual type, so
     // whoever hits this learns what went wrong without debugging.
     expect(
-      await screen.findByText(/Expected a noul answer for "covered", but got type "choice"/)
+      await screen.findByText(/bandRule expects noul answers; "covered" is a choice/)
     ).toBeInTheDocument();
 
     // The card is not blanked: the rest of it is still usable.
@@ -330,7 +335,7 @@ describe("ConsistencyNoulCard", () => {
   });
 
   it("cannot show a duration without answers, whatever the sequence", async () => {
-    render(<ConsistencyNoulCard engine={pinned} />);
+    render(<CookbookCard id={NOUL} engine={pinned} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
     // "questions in one request" (the duration span) is more specific than
     // "in one request" alone — QuestionsPane's own header also reads "all in
@@ -341,5 +346,156 @@ describe("ConsistencyNoulCard", () => {
     await userEvent.click(screen.getByRole("button", { name: /Thin file, late report/ }));
     expect(screen.queryByText(/questions in one request/)).not.toBeInTheDocument();
     expect(screen.queryByTestId("answer-covered")).not.toBeInTheDocument();
+  });
+});
+
+describe("CookbookCard — the other cookbooks", () => {
+  it("renders the guardrails score question's row rather than refusing every answer that is not a noul", async () => {
+    render(<CookbookCard id="llm-guardrails" engine={new FakeEngine()} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+
+    // The severity question is a `score`, and it routes alongside the four
+    // noul hazards in the same pass.
+    const severity = await screen.findByTestId("answer-severity");
+    expect(within(severity).getByText("Severity")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^answer-/)).toHaveLength(5);
+    expect(screen.queryByText(/could not be routed/)).not.toBeInTheDocument();
+  });
+
+  it("routes the choices cookbook through its own confidence floor", async () => {
+    render(<CookbookCard id="consistency-choice" engine={new FakeEngine()} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+
+    const row = await screen.findByTestId("answer-action");
+    expect(within(row).getByText("Enforcement action")).toBeInTheDocument();
+    expect(screen.queryByText(/could not be routed/)).not.toBeInTheDocument();
+  });
+
+  it("gives the headline verdict to the cookbook that declares one, and to no other", async () => {
+    const { unmount } = render(<CookbookCard id={NOUL} engine={pinned} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+    expect(await screen.findByTestId("claim-verdict")).toBeInTheDocument();
+    unmount();
+
+    for (const id of ["consistency-choice", "llm-guardrails"]) {
+      const view = render(<CookbookCard id={id} engine={new FakeEngine()} />);
+      await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+      await screen.findAllByTestId(/^answer-/);
+      expect(screen.queryByTestId("claim-verdict")).not.toBeInTheDocument();
+      // Nor any of the prose that headline is made of.
+      expect(screen.queryByText(/can be actioned/)).not.toBeInTheDocument();
+      view.unmount();
+    }
+  });
+
+  it("gives each cookbook the controls its own rule declares, under its own heading", async () => {
+    const { unmount } = render(<CookbookCard id={NOUL} engine={pinned} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+    expect(await screen.findByRole("slider", { name: /upper bound/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Uncertainty band" })).toBeInTheDocument();
+    unmount();
+
+    render(<CookbookCard id="llm-guardrails" engine={new FakeEngine()} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+    await screen.findByTestId("answer-severity");
+    // Guardrails has three thresholds of its own and no band to drag.
+    expect(screen.getByRole("slider", { name: /review threshold/i })).toBeInTheDocument();
+    expect(screen.getByRole("slider", { name: /action threshold/i })).toBeInTheDocument();
+    expect(screen.getByRole("slider", { name: /severity override/i })).toBeInTheDocument();
+    expect(screen.queryByRole("slider", { name: /upper bound/i })).not.toBeInTheDocument();
+  });
+
+  it("starts card one's bounds at the band its rule declares, not at numbers the card holds", async () => {
+    render(<CookbookCard id={NOUL} engine={pinned} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+    const low = (await screen.findByRole("slider", { name: /lower bound/i })) as HTMLInputElement;
+    const high = screen.getByRole("slider", { name: /upper bound/i }) as HTMLInputElement;
+    expect(low.value).toBe("0.3");
+    expect(high.value).toBe("0.7");
+  });
+
+  it("prints a severity override as a score rather than as a percentage", async () => {
+    render(<CookbookCard id="llm-guardrails" engine={new FakeEngine()} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+    await screen.findByTestId("answer-severity");
+    expect(screen.getByText("2.00")).toBeInTheDocument();
+    expect(screen.queryByText("200%")).not.toBeInTheDocument();
+  });
+
+  it("re-routes guardrails when a threshold moves, without asking the model again", async () => {
+    const engine = new FakeEngine({ jailbreak: 0.5 });
+    const decideSpy = vi.spyOn(engine, "decide");
+    render(<CookbookCard id="llm-guardrails" engine={engine} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+
+    expect(await screen.findByTestId("answer-jailbreak")).toHaveAttribute(
+      "data-disposition",
+      "review"
+    );
+    expect(decideSpy).toHaveBeenCalledTimes(1);
+
+    // Lift the review threshold above the hazard and it stops needing a person.
+    fireEvent.change(screen.getByRole("slider", { name: /review threshold/i }), {
+      target: { value: "0.99" },
+    });
+
+    expect(await screen.findByTestId("answer-jailbreak")).toHaveAttribute(
+      "data-disposition",
+      "auto"
+    );
+    expect(decideSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-routes the choices cookbook when its floor moves, without asking the model again", async () => {
+    const engine = new FakeEngine();
+    const decideSpy = vi.spyOn(engine, "decide");
+    render(<CookbookCard id="consistency-choice" engine={engine} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+    await screen.findAllByTestId(/^answer-/);
+
+    const floor = screen.getByRole("slider", { name: /floor/i });
+
+    fireEvent.change(floor, { target: { value: "1" } });
+    for (const row of screen.getAllByTestId(/^answer-/)) {
+      expect(row).toHaveAttribute("data-disposition", "review");
+    }
+
+    fireEvent.change(floor, { target: { value: "0" } });
+    for (const row of screen.getAllByTestId(/^answer-/)) {
+      expect(row).toHaveAttribute("data-disposition", "auto");
+    }
+
+    expect(decideSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the band's two bounds from crossing, showing where the rule put them", async () => {
+    render(<CookbookCard id={NOUL} engine={pinned} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+    const low = (await screen.findByRole("slider", { name: /lower bound/i })) as HTMLInputElement;
+    const high = screen.getByRole("slider", { name: /upper bound/i }) as HTMLInputElement;
+
+    // Drag the lower bound past the upper one: the rule swaps them rather than
+    // producing an empty band, and the controls follow.
+    fireEvent.change(low, { target: { value: "0.9" } });
+    expect(low.value).toBe("0.7");
+    expect(high.value).toBe("0.9");
+  });
+
+  it("counts the questions it actually asks, rather than one cookbook's fourteen", async () => {
+    render(<CookbookCard id="llm-guardrails" engine={new FakeEngine()} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+    expect(await screen.findByText(/^5 questions in one request/)).toBeInTheDocument();
+  });
+
+  it("says what changed without calling every cookbook's state a claim", async () => {
+    render(<CookbookCard id="llm-guardrails" engine={new FakeEngine()} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+    await screen.findByTestId("answer-severity");
+
+    const state = screen.getByRole("textbox", { name: /state/i });
+    await userEvent.type(state, " One more line.");
+
+    expect(screen.getByText(/The state has changed since this run/)).toBeInTheDocument();
+    expect(screen.queryByText(/claim text has changed/)).not.toBeInTheDocument();
   });
 });

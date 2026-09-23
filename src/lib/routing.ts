@@ -1,4 +1,3 @@
-import consistencyNoul from "../cookbooks/consistencyNoul";
 import type { NoulAnswer } from "../engine/types";
 
 /** An uncertainty band. Probabilities inside it, bounds included, go to a human. */
@@ -94,13 +93,12 @@ export type ClaimVerdict =
  * Which keys count as "critical" is cookbook-specific data — consistency-noul's
  * own judgment call about claims handling (see `criticalKeys` on its definition
  * in `src/cookbooks/consistencyNoul.ts`), not a fact this generic module should
- * hardcode. It is a parameter here for that reason. The default exists only
- * because `ConsistencyNoulCard` — the one caller today — does not pass one
- * explicitly; a future caller should pass its own cookbook's `criticalKeys`.
+ * hardcode. It is a required parameter for that reason: every caller passes its
+ * own cookbook's keys, and this module imports no cookbook at all.
  */
 export function claimVerdict(
   routed: RoutedQuestion[],
-  criticalKeys: readonly string[] = consistencyNoul.criticalKeys ?? []
+  criticalKeys: readonly string[]
 ): ClaimVerdict {
   const critical = routed.filter(
     (entry) => criticalKeys.includes(entry.key) && entry.verdict === "uncertain"

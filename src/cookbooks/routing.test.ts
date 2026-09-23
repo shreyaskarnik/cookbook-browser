@@ -1,9 +1,17 @@
 import { describe, expect, it } from "vitest";
+import consistencyChoice from "./consistencyChoice";
+import consistencyNoul from "./consistencyNoul";
+import guardrails from "./guardrails";
 import { bandRule, hazardRule, minimumConfidenceRule } from "./routing";
 import type { Answer } from "../engine";
 
 const noul = (p: number): Answer => ({
   type: "noul", answer: p >= 0.5, probability: p, confidence: Math.max(p, 1 - p),
+});
+const sevAnswer = (score: number): Answer => ({
+  type: "score", score, normalized: score / 3,
+  level: ["none", "mild", "serious", "severe"][Math.round(score)],
+  confidence: 0.8, probabilities: { none: 0.1, mild: 0.2, serious: 0.4, severe: 0.3 },
 });
 const choice = (winner: string, confidence: number): Answer => ({
   type: "choice", choice: winner, confidence,
@@ -134,5 +142,109 @@ describe("hazardRule", () => {
   it("leaves a severity level with no colon unchanged, rather than emptying it", () => {
     const items = route({ jailbreak: noul(0.1), severity: sev(0) }, { jailbreak: "Jailbreak", severity: "Severity" });
     expect(items.find((i) => i.key === "severity")!.detail).toBe("none");
+  });
+});
+
+describe("declared parameters", () => {
+  it("lets bandRule name its own two bounds, at the values it was built with", () => {
+    const controls = bandRule(0.3, 0.7).controls!;
+    expect(controls.parameters.map((p) => [p.name, p.value])).toEqual([
+      ["low", 0.3],
+      ["high", 0.7],
+    ]);
+    expect(controls.reviewBand).toEqual({ low: 0.3, high: 0.7 });
+  });
+
+  it("rebuilds a band rule at new bounds, routing the same answer differently", () => {
+    const widened = bandRule(0.3, 0.7).controls!.rebuild({ low: 0.3, high: 0.99 });
+    expect(widened({ q: noul(0.95) }, { q: "Q" })[0].disposition).toBe("review");
+    expect(bandRule(0.3, 0.7)({ q: noul(0.95) }, { q: "Q" })[0].disposition).toBe("auto");
+  });
+
+  it("swaps a crossed band and reports where it actually put the bounds", () => {
+    const rebuilt = bandRule(0.3, 0.7).controls!.rebuild({ low: 0.8, high: 0.2 });
+    expect(rebuilt.controls!.parameters.map((p) => p.value)).toEqual([0.2, 0.8]);
+  });
+
+  it("keeps a rebuilt rule adjustable, so a control can be moved twice", () => {
+    const once = bandRule(0.3, 0.7).controls!.rebuild({ low: 0.1, high: 0.9 });
+    const twice = once.controls!.rebuild({ low: 0.1, high: 0.4 });
+    expect(twice.controls!.parameters.map((p) => p.value)).toEqual([0.1, 0.4]);
+  });
+
+  it("lets minimumConfidenceRule name its one floor, and shade everything under it", () => {
+    const controls = minimumConfidenceRule(0.6).controls!;
+    expect(controls.parameters.map((p) => [p.name, p.value])).toEqual([["floor", 0.6]]);
+    expect(controls.reviewBand).toEqual({ low: 0, high: 0.6 });
+
+    const strict = controls.rebuild({ floor: 0.95 });
+    expect(strict({ q: choice("Remove", 0.82) }, { q: "Action" })[0].disposition).toBe("review");
+  });
+
+  it("lets hazardRule name all three of its thresholds, and prints the override as a score", () => {
+    const controls = hazardRule(0.35, 0.7, 2.0, "severity").controls!;
+    expect(controls.parameters.map((p) => [p.name, p.value])).toEqual([
+      ["review", 0.35],
+      ["action", 0.7],
+      ["severityBlock", 2],
+    ]);
+    // A severity runs 0..3 over four levels, so it is not a percentage.
+    const override = controls.parameters.find((p) => p.name === "severityBlock")!;
+    expect(override.format).toBe("number");
+    expect(override.max).toBe(3);
+    // No single shaded region: the severity row is measured on a normalized
+    // score rather than a hazard probability.
+    expect(controls.reviewBand).toBeUndefined();
+  });
+
+  it("rebuilds a hazard rule at a new override without re-stating which question is the severity", () => {
+    const lenient = hazardRule(0.35, 0.7, 2.0, "severity").controls!.rebuild({
+      review: 0.35,
+      action: 0.7,
+      severityBlock: 3,
+    });
+    const items = lenient(
+      { jailbreak: noul(0.69), severity: sevAnswer(2.22) },
+      { jailbreak: "Jailbreak", severity: "Severity" }
+    );
+    // 2.22 no longer reaches the override, so the review is no longer forced
+    // into a block — and the severity question is still judged as a score.
+    expect(items.find((i) => i.key === "jailbreak")!.disposition).toBe("review");
+    expect(items.find((i) => i.key === "severity")!.disposition).toBe("auto");
+  });
+
+  it("falls back to the value the rule already had when a control hands over a non-finite number", () => {
+    const rebuilt = minimumConfidenceRule(0.6).controls!.rebuild({ floor: NaN });
+    expect(rebuilt.controls!.parameters[0].value).toBe(0.6);
+  });
+
+  it("holds a threshold inside its declared range", () => {
+    const rebuilt = hazardRule(0.35, 0.7, 2.0, "severity").controls!.rebuild({
+      review: -5,
+      action: 9,
+      severityBlock: 99,
+    });
+    expect(rebuilt.controls!.parameters.map((p) => p.value)).toEqual([0, 1, 3]);
+  });
+});
+
+describe("the thresholds each cookbook publishes", () => {
+  const valuesOf = (rule: { controls?: { parameters: readonly { name: string; value: number }[] } }) =>
+    Object.fromEntries(rule.controls!.parameters.map((p) => [p.name, p.value]));
+
+  it("starts Self-consistency: nouls at the cookbook's 0.30 / 0.70 band", () => {
+    expect(valuesOf(consistencyNoul.routing)).toEqual({ low: 0.3, high: 0.7 });
+  });
+
+  it("starts Self-consistency: choices at the cookbook's 0.60 floor", () => {
+    expect(valuesOf(consistencyChoice.routing)).toEqual({ floor: 0.6 });
+  });
+
+  it("starts Guardrails for LLMs at the cookbook's 0.35 / 0.70 / 2.0", () => {
+    expect(valuesOf(guardrails.routing)).toEqual({
+      review: 0.35,
+      action: 0.7,
+      severityBlock: 2,
+    });
   });
 });

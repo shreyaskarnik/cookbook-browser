@@ -18,10 +18,17 @@ export function classify(probability: number, band: Band): Verdict {
 
 /** Keep a band usable however the two slider handles are dragged: inside 0..1, and
  *  low below high (a crossed band is a drag past the other handle, not a request
- *  for an empty band). */
+ *  for an empty band). Non-finite bounds (NaN, Infinity, -Infinity) are replaced
+ *  with their corresponding defaults independently, so a single bad bound cannot
+ *  corrupt the good one. */
 export function clampBand(band: Band): Band {
-  const low = Math.min(Math.max(band.low, 0), 1);
-  const high = Math.min(Math.max(band.high, 0), 1);
+  // Replace non-finite bounds with their defaults, independently.
+  let low = Number.isFinite(band.low) ? band.low : DEFAULT_BAND.low;
+  let high = Number.isFinite(band.high) ? band.high : DEFAULT_BAND.high;
+  // Clamp to valid range.
+  low = Math.min(Math.max(low, 0), 1);
+  high = Math.min(Math.max(high, 0), 1);
+  // Ensure low <= high.
   return low <= high ? { low, high } : { low: high, high: low };
 }
 

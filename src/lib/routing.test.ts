@@ -50,6 +50,35 @@ describe("clampBand", () => {
   it("holds the bounds inside zero and one", () => {
     expect(clampBand({ low: -0.5, high: 1.5 })).toEqual({ low: 0, high: 1 });
   });
+  it("replaces NaN low with the default, leaving high unchanged", () => {
+    const clamped = clampBand({ low: NaN, high: 0.7 });
+    expect(clamped).toEqual({ low: 0.3, high: 0.7 });
+    // Verify it still classifies high probability as "yes" and low as "no"
+    expect(classify(0.95, clamped)).toBe("yes");
+    expect(classify(0.05, clamped)).toBe("no");
+  });
+  it("replaces NaN high with the default, leaving low unchanged", () => {
+    const clamped = clampBand({ low: 0.2, high: NaN });
+    expect(clamped).toEqual({ low: 0.2, high: 0.7 });
+    expect(classify(0.95, clamped)).toBe("yes");
+    expect(classify(0.05, clamped)).toBe("no");
+  });
+  it("replaces both NaN bounds with their defaults", () => {
+    const clamped = clampBand({ low: NaN, high: NaN });
+    expect(clamped).toEqual({ low: 0.3, high: 0.7 });
+    expect(classify(0.95, clamped)).toBe("yes");
+    expect(classify(0.05, clamped)).toBe("no");
+  });
+  it("replaces Infinity with the default, clamping +Infinity to 1 via default then clamping", () => {
+    const clamped = clampBand({ low: Infinity, high: -Infinity });
+    // Both become defaults, then clamped to 0..1
+    expect(clamped).toEqual({ low: 0.3, high: 0.7 });
+  });
+  it("handles -Infinity the same way", () => {
+    const clamped = clampBand({ low: -Infinity, high: 0.5 });
+    expect(clamped.low).toEqual(0.3);
+    expect(clamped.high).toEqual(0.5);
+  });
 });
 
 describe("routeAll", () => {

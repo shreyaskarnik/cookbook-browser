@@ -6,7 +6,7 @@
 
 **Architecture:** A Vite/React single-page app. All model work sits behind one `Engine` interface; the only Phase 1 implementation wraps `open-jev` inside a Web Worker so WebGPU inference never blocks the UI, and a deterministic `FakeEngine` backs every test so the suite runs in milliseconds with no model download. Cookbooks are data (`CookbookDefinition` objects), so adding the other seventeen later means adding files, not changing components.
 
-**Tech Stack:** TypeScript 5.9, React 19.3, Vite 8, Tailwind 4.3 (`@tailwindcss/vite`), `open-jev` 0.1.2 over `@huggingface/transformers` 4.3, Vitest 3 + Testing Library, pnpm 11, Node 24. Deployed as a static Hugging Face Space.
+**Tech Stack:** TypeScript 5.9, React 19.3, Vite 8, Tailwind 4.3 (`@tailwindcss/vite`), `open-jev` 0.1.2 over `@huggingface/transformers` 4.3, Vitest 5 + Testing Library 16, pnpm, Node 20.19+ (CI uses 24). Deployed as a static Hugging Face Space.
 
 **Spec:** `docs/superpowers/specs/2026-09-22-browser-cookbook-design.md`
 
@@ -17,7 +17,8 @@
 - **Local is the default on every visit.** No setting makes a remote engine the default.
 - **No API key in Phase 1.** The TypeSafe engine is deliberately out of scope (see Scope below). The `Engine` interface must accommodate it without change.
 - **Nothing leaves the tab.** No analytics, no telemetry, no error reporting service, no font or asset fetched from a host other than Hugging Face (model weights) and Google Fonts (typeface). State text is never logged, never put in a URL, never persisted anywhere but React state.
-- **Versions are floors, matched to the reference implementation:** `open-jev@^0.1.2`, `@huggingface/transformers@^4.3.0`, `react@^19.3.0`, `vite@^8.3.0`, `tailwindcss@^4.3.3`, `typescript@^5.9.3`. Node 24, pnpm 11.1.1.
+- **Versions are floors, matched to the reference implementation:** `open-jev@^0.1.2`, `@huggingface/transformers@^4.3.0`, `react@^19.3.0`, `vite@^8.3.0`, `tailwindcss@^4.3.3`, `typescript@^5.9.3`. CI uses Node 24; Vite 8 requires Node `^20.19.0 || >=22.12.0`, which is the real floor.
+- **Test toolchain:** `vitest@^5.0.1` (its peer range is `vite ^6.4.0 || ^7.0.0 || ^8.0.0`; vitest 3 does not pair with Vite 8) and `@testing-library/react@^16.3.0` (16.3.3 is the latest published; there is no 17).
 - **Vite config is not optional:** `optimizeDeps.exclude: ["@huggingface/transformers"]` and `build.target: "esnext"`. Without both, the ONNX runtime fails at runtime.
 - **Repo:** `/Users/shreyas/work/rnd/jev-mario/cookbook-browser`, pushed to `github.com/shreyaskarnik/cookbook-browser` (public). The copies of this plan and the design under `docs/superpowers/` in that repo are canonical; the copies in the parent directory are historical.
 
@@ -100,7 +101,7 @@ cd /Users/shreyas/work/rnd/jev-mario/cookbook-browser
 pnpm init
 pnpm add react@^19.3.0 react-dom@^19.3.0 open-jev@^0.1.2 @huggingface/transformers@^4.3.0 lucide-react@^1.47.0
 pnpm add -D typescript@^5.9.3 vite@^8.3.0 @vitejs/plugin-react@^6.1.1 tailwindcss@^4.3.3 @tailwindcss/vite@^4.3.3 \
-  vitest@^3.2.0 jsdom@^27.0.0 @testing-library/react@^17.0.0 @testing-library/jest-dom@^6.9.0 @testing-library/user-event@^14.6.0 \
+  vitest@^5.0.1 jsdom@^27.0.0 @testing-library/react@^16.3.0 @testing-library/jest-dom@^6.9.0 @testing-library/user-event@^14.6.0 \
   @types/react@^19.3.0 @types/react-dom@^19.3.0 prettier@^3.9.8
 ```
 

@@ -35,4 +35,19 @@ describe("App", () => {
       await screen.findByRole("heading", { name: "Self-consistency: nouls" })
     ).toBeInTheDocument();
   });
+
+  it("has exactly one page heading, ahead of the sidebar's category headings", async () => {
+    render(<App />);
+    await userEvent.click(screen.getByRole("button", { name: /load the model/i }));
+    await screen.findByRole("heading", { name: "Self-consistency: nouls" });
+
+    const h1s = screen.getAllByRole("heading", { level: 1 });
+    expect(h1s).toHaveLength(1);
+
+    const categoryHeading = screen.getByRole("heading", { name: "Self-consistency" });
+    // eslint-disable-next-line no-bitwise
+    expect(
+      h1s[0].compareDocumentPosition(categoryHeading) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
 });

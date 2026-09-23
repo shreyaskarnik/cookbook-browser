@@ -119,7 +119,7 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
     <div className="grid gap-6 xl:grid-cols-[1fr_18rem]">
       <div className="flex flex-col gap-4">
         <header>
-          <h1 className="text-2xl font-bold tracking-tight">{entry.title}</h1>
+          <h2 className="text-2xl font-bold tracking-tight">{entry.title}</h2>
           <p className="mt-1 text-stone">
             {entry.description}{" "}
             <a
@@ -181,7 +181,7 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
             )}
 
             <section className="rounded-2xl border border-line bg-white p-4">
-              <h2 className="font-semibold">Uncertainty band</h2>
+              <h3 className="font-semibold">Uncertainty band</h3>
               <p className="mt-1 text-sm text-stone">
                 Anything inside the band goes to a person. Drag the bounds and watch
                 the answers move — the model is not asked again.

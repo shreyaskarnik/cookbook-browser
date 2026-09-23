@@ -220,4 +220,37 @@ describe("ConsistencyNoulCard", () => {
       vi.useRealTimers();
     }
   });
+
+  it("names the offending question and its type rather than rendering NaN bars, when an engine answers a noul question with something else", async () => {
+    // Every question in this cookbook is a noul, so this cannot happen with a
+    // real engine today. It stands in for what a future cookbook built from
+    // choice or score questions would hand the card if it reused this
+    // component without also updating the guard.
+    const mismatched = {
+      runtime: { engine: "local" as const, model: "x", device: "x", dtype: "x" },
+      decide: async () => ({
+        covered: {
+          type: "choice" as const,
+          choice: "yes",
+          confidence: 0.9,
+          probabilities: { yes: 0.9, no: 0.1 },
+        },
+      }),
+      countTokens: () => 10,
+      dispose: async () => {},
+    };
+
+    render(<ConsistencyNoulCard engine={mismatched} />);
+    await userEvent.click(screen.getByRole("button", { name: /run/i }));
+
+    // The message names both the offending key and its actual type, so
+    // whoever hits this learns what went wrong without debugging.
+    expect(
+      await screen.findByText(/Expected a noul answer for "covered", but got type "choice"/)
+    ).toBeInTheDocument();
+
+    // The card is not blanked: the rest of it is still usable.
+    expect(screen.getByRole("textbox", { name: /state/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /run/i })).not.toBeDisabled();
+  });
 });

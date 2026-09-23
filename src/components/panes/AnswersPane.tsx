@@ -25,7 +25,7 @@ export default function AnswersPane({
   return (
     <section className="rounded-2xl border border-line bg-white p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="font-semibold">Answers</h2>
+        <h3 className="font-semibold">Answers</h3>
         {stale && (
           <span
             data-testid="answers-stale-badge"

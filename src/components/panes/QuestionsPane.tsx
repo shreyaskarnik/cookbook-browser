@@ -10,12 +10,12 @@ export default function QuestionsPane({
   const entries = Object.entries(questions);
   return (
     <section className="rounded-2xl border border-line bg-white p-4">
-      <h2 className="mb-2 font-semibold">
+      <h3 className="mb-2 font-semibold">
         Questions{" "}
         <span className="font-normal text-stone">
           — {entries.length}, all in one request
         </span>
-      </h2>
+      </h3>
       <ul className="flex flex-col gap-1">
         {entries.map(([key, question]) => (
           <li

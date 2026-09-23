@@ -281,7 +281,13 @@ export default function CookbookCard({
               </p>
             )}
 
-            {(controls || Headline) && (
+            {/* A rule that threw routed nothing, so `routing.items` is empty.
+                The headline and the rows both read their content off that
+                list, and an empty list reads as a real result — "0 of 0
+                questions go to review" — sitting under a banner saying the
+                answers could not be routed. The controls stay: they assert
+                nothing, and moving one rebuilds the rule. */}
+            {(controls || (Headline && !routing.error)) && (
               <section className="rounded-2xl border border-line bg-white p-4">
                 {controls && (
                   <>
@@ -315,7 +321,7 @@ export default function CookbookCard({
                     </div>
                   </>
                 )}
-                {Headline && (
+                {Headline && !routing.error && (
                   <Headline
                     routed={routing.items}
                     definition={definition}
@@ -326,11 +332,13 @@ export default function CookbookCard({
               </section>
             )}
 
-            <AnswersPane
-              routed={routing.items}
-              band={controls?.reviewBand}
-              stale={stale}
-            />
+            {!routing.error && (
+              <AnswersPane
+                routed={routing.items}
+                band={controls?.reviewBand}
+                stale={stale}
+              />
+            )}
           </>
         )}
       </div>

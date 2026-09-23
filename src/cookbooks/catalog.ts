@@ -27,7 +27,7 @@ export const CATALOG: readonly CookbookEntry[] = [
     slug: "consistency_choice_cookbook",
     category: "Self-consistency",
     description:
-      "Send a moderation choice to a person whenever its confidence falls below a fixed 0.60 floor.",
+      "Send a moderation choice to a person whenever its confidence falls below the floor, and drag the floor to see which choices move.",
     status: "built",
   },
   {

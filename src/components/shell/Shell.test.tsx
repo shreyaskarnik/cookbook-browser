@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { builtCookbooks, getEntry } from "../../cookbooks";
+import { builtCookbooks, getDefinition, getEntry } from "../../cookbooks";
 import { FakeEngine } from "../../engine/fake";
 import Shell from "./Shell";
 
@@ -16,7 +16,9 @@ const cardHeading = (title: string) =>
 describe("Shell", () => {
   it("opens on the first built cookbook", () => {
     render(<Shell engine={engine} />);
-    expect(cardHeading("Self-consistency: nouls")).toBeInTheDocument();
+    // Shell opens on `builtCookbooks()[0]`, so derive the title the same way.
+    // A literal here passes only until the catalog's first built entry changes.
+    expect(cardHeading(getEntry(builtCookbooks()[0].id).title)).toBeInTheDocument();
   });
 
   it.each(builtCookbooks().map((entry) => entry.id))(
@@ -55,6 +57,6 @@ describe("Shell", () => {
     const state = screen.getByRole("textbox", {
       name: /state/i,
     }) as HTMLTextAreaElement;
-    expect(state.value).toContain("Post by u/4471");
+    expect(state.value).toBe(getDefinition("consistency-choice").samples[0].text);
   });
 });

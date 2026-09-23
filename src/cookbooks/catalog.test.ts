@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CATALOG, CATEGORIES, docsUrl } from "./catalog";
-import { BUILT_IDS } from "./index";
+import { BUILT_IDS, getDefinition } from "./index";
 import consistencyNoul from "./consistencyNoul";
 
 describe("CATALOG", () => {
@@ -79,5 +79,33 @@ describe("consistencyNoul", () => {
     for (const sample of consistencyNoul.samples) {
       expect(sample.text.length).toBeGreaterThan(80);
     }
+  });
+});
+
+/** Every routing rule resolves its row labels through `resolveLabel`, which
+ *  throws rather than leak a raw camelCase key to a visitor. That makes a
+ *  missing label a cookbook-authoring mistake that surfaces at run time, as an
+ *  error banner on the card. Derived over every built cookbook so the
+ *  fifteen still to come are covered the day they are registered, rather than
+ *  each needing someone to remember to write this test again. */
+describe("every built definition", () => {
+  it.each(BUILT_IDS)("labels every question it asks: %s", (id) => {
+    const definition = getDefinition(id);
+    const unlabelled = Object.keys(definition.questions).filter(
+      (key) => !definition.labels[key]
+    );
+    expect(unlabelled).toEqual([]);
+  });
+
+  it.each(BUILT_IDS)("labels nothing it does not ask: %s", (id) => {
+    const definition = getDefinition(id);
+    const orphaned = Object.keys(definition.labels).filter(
+      (key) => !(key in definition.questions)
+    );
+    expect(orphaned).toEqual([]);
+  });
+
+  it.each(BUILT_IDS)("offers at least one sample to run: %s", (id) => {
+    expect(getDefinition(id).samples.length).toBeGreaterThan(0);
   });
 });

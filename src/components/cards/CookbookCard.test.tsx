@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { getDefinition } from "../../cookbooks";
 import { FakeEngine } from "../../engine/fake";
 import CookbookCard from "./CookbookCard";
 
@@ -332,6 +333,15 @@ describe("CookbookCard — Self-consistency: nouls", () => {
     // The card is not blanked: the rest of it is still usable.
     expect(screen.getByRole("textbox", { name: /state/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /run/i })).not.toBeDisabled();
+
+    // Nothing summarises a routing that did not happen. The headline reads its
+    // counts off the routed rows, which are empty here, so rendering it would
+    // state "0 of 0 questions go to review" directly beneath a banner saying
+    // the answers could not be routed — the card asserting a number it does
+    // not have. Same rule the stale case already enforces, in the case where
+    // being wrong matters more.
+    expect(screen.queryByText(/go to review/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/decided automatically/)).not.toBeInTheDocument();
   });
 
   it("cannot show a duration without answers, whatever the sequence", async () => {
@@ -358,7 +368,9 @@ describe("CookbookCard — the other cookbooks", () => {
     // noul hazards in the same pass.
     const severity = await screen.findByTestId("answer-severity");
     expect(within(severity).getByText("Severity")).toBeInTheDocument();
-    expect(screen.getAllByTestId(/^answer-/)).toHaveLength(5);
+    expect(screen.getAllByTestId(/^answer-/)).toHaveLength(
+      Object.keys(getDefinition("llm-guardrails").questions).length
+    );
     expect(screen.queryByText(/could not be routed/)).not.toBeInTheDocument();
   });
 
@@ -410,15 +422,23 @@ describe("CookbookCard — the other cookbooks", () => {
     await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
     const low = (await screen.findByRole("slider", { name: /lower bound/i })) as HTMLInputElement;
     const high = screen.getByRole("slider", { name: /upper bound/i }) as HTMLInputElement;
-    expect(low.value).toBe("0.3");
-    expect(high.value).toBe("0.7");
+    // Read the expected values off the rule itself. The contract in the title
+    // is "the card reads the rule's defaults" — asserting the literals would
+    // pin 0.3/0.7 in a fourth place and pass even if the card stopped reading
+    // the rule and happened to hold the same two numbers.
+    const declared = getDefinition(NOUL).routing.controls!.parameters;
+    expect(low.value).toBe(String(declared[0].value));
+    expect(high.value).toBe(String(declared[1].value));
   });
 
   it("prints a severity override as a score rather than as a percentage", async () => {
     render(<CookbookCard id="llm-guardrails" engine={new FakeEngine()} />);
     await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
     await screen.findByTestId("answer-severity");
-    expect(screen.getByText("2.00")).toBeInTheDocument();
+    const override = getDefinition("llm-guardrails").routing.controls!.parameters.find(
+      (parameter) => parameter.format !== "percent"
+    )!;
+    expect(screen.getByText(override.value.toFixed(2))).toBeInTheDocument();
     expect(screen.queryByText("200%")).not.toBeInTheDocument();
   });
 
@@ -484,7 +504,10 @@ describe("CookbookCard — the other cookbooks", () => {
   it("counts the questions it actually asks, rather than one cookbook's fourteen", async () => {
     render(<CookbookCard id="llm-guardrails" engine={new FakeEngine()} />);
     await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
-    expect(await screen.findByText(/^5 questions in one request/)).toBeInTheDocument();
+    const asked = Object.keys(getDefinition("llm-guardrails").questions).length;
+    expect(
+      await screen.findByText(new RegExp(`^${asked} questions in one request`))
+    ).toBeInTheDocument();
   });
 
   it("says what changed without calling every cookbook's state a claim", async () => {

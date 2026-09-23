@@ -37,7 +37,7 @@ const consistencyChoice: CookbookDefinition = {
   routing: minimumConfidenceRule(0.6),
   requires: {
     model: "kev-0.6b",
-    why: "Measured at 0.6B: a six-option tool choice resolved correctly at 60% confidence, and a 24-option classification at 99%. Choice questions of this size are well within the small model.",
+    why: "Measured at 0.6B: three of the eight confidences fall below the 0.60 floor on the ambiguous post, while the borderline and benign posts produce different enforcement choices — Remove against Allow, Spam against None.",
   },
   samples: [
     {

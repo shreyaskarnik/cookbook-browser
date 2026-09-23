@@ -121,6 +121,17 @@ const verdicts = Object.fromEntries(
     model: "kev-0.6b",
     why: "Measured at 0.6B: the fourteen probabilities span 16% to 90% on the track-day claim, with seven inside the default band.",
   },
+  /**
+   * The questions a person must be sure about before a payout goes out: whether the
+   * loss is covered at all, whether an exclusion kills it, whether it smells like
+   * fraud, and whether the file itself asks for a supervisor. Uncertainty anywhere
+   * else can be absorbed; uncertainty here cannot.
+   *
+   * This is a judgment call about claims handling rather than a fact about the model.
+   * Change this list (or swap the rule in `claimVerdict` for a count over all
+   * fourteen) and the headline changes with it.
+   */
+  criticalKeys: ["covered", "exclusionApplies", "fraudIndicators", "manualReview"],
 };
 
 export default consistencyNoul;

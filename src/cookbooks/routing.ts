@@ -1,4 +1,5 @@
 import type { Answer } from "../engine/types";
+import { formatPercent } from "../lib/format";
 
 /** What happens to one question's answer: decided by the machine, or sent to a person. */
 export type Disposition = "auto" | "review";
@@ -24,8 +25,6 @@ export type RoutingRule = (
   answers: Record<string, Answer>,
   labels: Record<string, string>
 ) => RoutedItem[];
-
-const percent = (value: number) => `${Math.round(value * 100)}%`;
 
 /** The human label for `key`, never the raw key itself. Throws rather than
  *  falling back to `key` — a missing label is a cookbook bug, and a raw
@@ -60,10 +59,21 @@ export function bandRule(low: number, high: number): RoutingRule {
         key,
         label: resolveLabel(key, labels),
         disposition: inside ? "review" : "auto",
-        detail: `${word} (${percent(answer.probability)})`,
+        detail: `${word} (${formatPercent(answer.probability)})`,
         value: answer.probability,
       };
     });
+}
+
+/** The label up to its first colon, e.g. "Serious: complying enables real
+ *  wrongdoing or gives unsafe personal advice" becomes "Serious". A
+ *  `ScoreAnswer.level` is the full option label — guardrails' four levels are
+ *  each a whole sentence — and this renders into `AnswersPane`'s narrow
+ *  (`w-20`) detail column. A level with no colon is returned unchanged rather
+ *  than emptied, so a future cookbook's shorter levels are not broken by this. */
+function firstClause(label: string): string {
+  const colon = label.indexOf(":");
+  return colon === -1 ? label : label.slice(0, colon);
 }
 
 /** The guardrails cookbook's rule: two thresholds on each hazard probability,
@@ -90,7 +100,7 @@ export function hazardRule(
           key,
           label: resolveLabel(key, labels),
           disposition: "auto" as const,
-          detail: answer.level,
+          detail: firstClause(answer.level),
           value: answer.normalized,
         };
       }
@@ -99,18 +109,21 @@ export function hazardRule(
       }
       const p = answer.probability;
       if (p >= action) {
-        return { key, label: resolveLabel(key, labels), disposition: "auto" as const, detail: `${percent(p)} — block`, value: p };
+        return { key, label: resolveLabel(key, labels), disposition: "auto" as const, detail: `${formatPercent(p)} — block`, value: p };
       }
       if (p >= review) {
+        // A severity-forced block is still a block: it must render the same
+        // disposition as the action-threshold block above, or the same
+        // outcome colours differently depending on which branch produced it.
         return {
           key,
           label: resolveLabel(key, labels),
-          disposition: "review" as const,
-          detail: severe ? `${percent(p)} — block (severity)` : `${percent(p)} — review`,
+          disposition: severe ? ("auto" as const) : ("review" as const),
+          detail: severe ? `${formatPercent(p)} — block (severity)` : `${formatPercent(p)} — review`,
           value: p,
         };
       }
-      return { key, label: resolveLabel(key, labels), disposition: "auto" as const, detail: percent(p), value: p };
+      return { key, label: resolveLabel(key, labels), disposition: "auto" as const, detail: formatPercent(p), value: p };
     });
   };
 }
@@ -127,7 +140,7 @@ export function minimumConfidenceRule(floor: number): RoutingRule {
         key,
         label: resolveLabel(key, labels),
         disposition: answer.confidence >= floor ? "auto" : "review",
-        detail: `${answer.choice} (${percent(answer.confidence)})`,
+        detail: `${answer.choice} (${formatPercent(answer.confidence)})`,
         value: answer.confidence,
       };
     });

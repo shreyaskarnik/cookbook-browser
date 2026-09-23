@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CRITICAL_KEYS, claimVerdict } from "./routing";
+import { claimVerdict } from "./routing";
 import type { RoutedQuestion } from "./routing";
 
 const entry = (key: string, verdict: RoutedQuestion["verdict"]): RoutedQuestion => ({
@@ -56,7 +56,7 @@ describe("claimVerdict", () => {
 
   it("keeps every critical key among the card's fourteen question keys", async () => {
     const { default: definition } = await import("../cookbooks/consistencyNoul");
-    for (const key of CRITICAL_KEYS) {
+    for (const key of definition.criticalKeys ?? []) {
       expect(Object.keys(definition.questions)).toContain(key);
     }
   });
@@ -67,5 +67,15 @@ describe("claimVerdict", () => {
     expect(verdict.outcome === "review" && verdict.criticalUncertainKeys).toEqual([
       "fraudIndicators",
     ]);
+  });
+
+  it("takes its critical keys as a parameter, so a different cookbook can supply its own", () => {
+    const verdict = claimVerdict([entry("lineItemsAddUp", "uncertain")], ["lineItemsAddUp"]);
+    expect(verdict).toEqual({ outcome: "review", criticalUncertainKeys: ["lineItemsAddUp"] });
+  });
+
+  it("with an explicit empty list, treats nothing as critical — unlike the default", () => {
+    const verdict = claimVerdict([entry("covered", "uncertain")], []);
+    expect(verdict).toEqual({ outcome: "auto", elsewhereUncertain: 1 });
   });
 });

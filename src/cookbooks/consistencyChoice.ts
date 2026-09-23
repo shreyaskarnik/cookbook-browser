@@ -57,7 +57,7 @@ targeted harassment of a different user.`,
     {
       id: "clearly-fine",
       label: "Clearly fine",
-      meta: "nothing to action",
+      meta: "a four-year account, no reports, no links",
       text: `Post by u/8812, no reports, no strikes, account age 4 years.
 
 "Finally got the sourdough starter working after three failed attempts. The
@@ -69,7 +69,7 @@ No links. No prior moderation history.`,
     {
       id: "ambiguous",
       label: "Ambiguous",
-      meta: "where the floor earns its keep",
+      meta: "cutting and sarcastic, but no slurs or threats",
       text: `Post by u/2290, reported twice, no prior strikes, account age 11 months.
 
 "that take is genuinely one of the worst I've read all year and I say that as

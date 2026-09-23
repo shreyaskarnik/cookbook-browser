@@ -44,4 +44,11 @@ export type CookbookDefinition = {
    *  MEASURED, never guessed — see the spec's viability probe. `why` states
    *  what was actually observed, so the banner can say something specific. */
   requires: { model: "kev-0.6b" | "kev-4b"; why: string };
+  /** Keys among `questions` that a person must be sure about before
+   *  `claimVerdict` (`src/lib/routing.ts`) can call the claim "auto" —
+   *  uncertainty elsewhere can be absorbed, uncertainty here cannot. This is
+   *  a judgment call specific to consistency-noul's claims-handling card, not
+   *  a fact every cookbook has, so it is optional: the other two cookbooks
+   *  route without any notion of "critical". */
+  criticalKeys?: readonly string[];
 };

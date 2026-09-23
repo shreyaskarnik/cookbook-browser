@@ -27,7 +27,7 @@ export const CATALOG: readonly CookbookEntry[] = [
     slug: "consistency_choice_cookbook",
     category: "Self-consistency",
     description:
-      "Add uncertain outcomes to moderation decisions and compare label agreement with automatic action rates.",
+      "Send a moderation choice to a person whenever its confidence falls below a fixed 0.60 floor.",
     status: "built",
   },
   {
@@ -113,7 +113,7 @@ export const CATALOG: readonly CookbookEntry[] = [
     slug: "llm_guardrails",
     category: "How-to",
     description:
-      "Screen input and output by thresholding hazard probabilities and severity levels.",
+      "Screen incoming messages against four hazard questions, with a severity score that can escalate a review into a block.",
     status: "built",
   },
   {

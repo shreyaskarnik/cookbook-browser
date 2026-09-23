@@ -1,3 +1,4 @@
+import consistencyNoul from "../cookbooks/consistencyNoul";
 import type { NoulAnswer } from "../engine/types";
 
 /** An uncertainty band. Probabilities inside it, bounds included, go to a human. */
@@ -84,31 +85,25 @@ export type ClaimVerdict =
   | {
       /** Renders amber and says a person needs to look at it. */
       outcome: "review";
-      /** The critical keys (see `CRITICAL_KEYS`) that are uncertain. Always
-       *  non-empty when `outcome` is "review". */
+      /** The critical keys (as passed to `claimVerdict`) that are uncertain.
+       *  Always non-empty when `outcome` is "review". */
       criticalUncertainKeys: string[];
     };
 
 /**
- * The questions a person must be sure about before a payout goes out: whether the
- * loss is covered at all, whether an exclusion kills it, whether it smells like
- * fraud, and whether the file itself asks for a supervisor. Uncertainty anywhere
- * else can be absorbed; uncertainty here cannot.
- *
- * This is a judgment call about claims handling rather than a fact about the model.
- * Change this list (or swap the rule in `claimVerdict` for a count over all
- * fourteen) and the headline changes with it.
+ * Which keys count as "critical" is cookbook-specific data — consistency-noul's
+ * own judgment call about claims handling (see `criticalKeys` on its definition
+ * in `src/cookbooks/consistencyNoul.ts`), not a fact this generic module should
+ * hardcode. It is a parameter here for that reason. The default exists only
+ * because `ConsistencyNoulCard` — the one caller today — does not pass one
+ * explicitly; a future caller should pass its own cookbook's `criticalKeys`.
  */
-export const CRITICAL_KEYS: readonly string[] = [
-  "covered",
-  "exclusionApplies",
-  "fraudIndicators",
-  "manualReview",
-];
-
-export function claimVerdict(routed: RoutedQuestion[]): ClaimVerdict {
+export function claimVerdict(
+  routed: RoutedQuestion[],
+  criticalKeys: readonly string[] = consistencyNoul.criticalKeys ?? []
+): ClaimVerdict {
   const critical = routed.filter(
-    (entry) => CRITICAL_KEYS.includes(entry.key) && entry.verdict === "uncertain"
+    (entry) => criticalKeys.includes(entry.key) && entry.verdict === "uncertain"
   );
   if (critical.length === 0) {
     const elsewhere = routed.filter((entry) => entry.verdict === "uncertain").length;

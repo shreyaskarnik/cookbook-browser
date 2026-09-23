@@ -95,4 +95,44 @@ describe("hazardRule", () => {
     const items = route({ jailbreak: noul(0.1), severity: sev(3) }, { jailbreak: "Jailbreak", severity: "Severity" });
     expect(items.find((i) => i.key === "severity")!.disposition).toBe("auto");
   });
+
+  // The real measured case (see guardrails.ts's `requires.why`): jailbreak at
+  // 69% with severity reaching 2.22 under this cookbook's own thresholds.
+  it("renders a severity-forced block the same disposition as an action-threshold block", () => {
+    const items = route(
+      { jailbreak: noul(0.69), severity: sev(2.22) },
+      { jailbreak: "Jailbreak", severity: "Severity" }
+    );
+    const item = items.find((i) => i.key === "jailbreak")!;
+    expect(item.disposition).toBe("auto");
+    expect(item.detail).toBe("69% — block (severity)");
+  });
+
+  it("the same 69% stays under review when severity does not reach the override", () => {
+    const items = route(
+      { jailbreak: noul(0.69), severity: sev(0.13) },
+      { jailbreak: "Jailbreak", severity: "Severity" }
+    );
+    const item = items.find((i) => i.key === "jailbreak")!;
+    expect(item.disposition).toBe("review");
+    expect(item.detail).toBe("69% — review");
+  });
+
+  it("takes the severity detail up to its first colon, since AnswersPane's column is narrow", () => {
+    const sentence: Answer = {
+      type: "score",
+      score: 2,
+      normalized: 2 / 3,
+      level: "Serious: complying enables real wrongdoing or gives unsafe personal advice",
+      confidence: 0.8,
+      probabilities: { none: 0.1, mild: 0.2, serious: 0.4, severe: 0.3 },
+    };
+    const items = route({ jailbreak: noul(0.1), severity: sentence }, { jailbreak: "Jailbreak", severity: "Severity" });
+    expect(items.find((i) => i.key === "severity")!.detail).toBe("Serious");
+  });
+
+  it("leaves a severity level with no colon unchanged, rather than emptying it", () => {
+    const items = route({ jailbreak: noul(0.1), severity: sev(0) }, { jailbreak: "Jailbreak", severity: "Severity" });
+    expect(items.find((i) => i.key === "severity")!.detail).toBe("none");
+  });
 });

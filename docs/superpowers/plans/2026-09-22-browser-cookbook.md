@@ -2252,6 +2252,7 @@ describe("ConsistencyNoulCard", () => {
         throw new Error("The model ran out of memory.");
       },
       countTokens: () => 10,
+      // no primeTokenCount: the card must work with an engine that lacks it
       dispose: async () => {},
     };
     render(<ConsistencyNoulCard engine={broken} />);
@@ -2275,11 +2276,16 @@ export default function StatePane({
   value,
   onChange,
   tokens,
+  exact,
   disabled,
 }: {
   value: string;
   onChange: (text: string) => void;
   tokens: number;
+  /** Whether `tokens` came from the real tokenizer. An unprimed estimate
+   *  undercounts by roughly 1.8x to 2.2x, so it is marked rather than shown
+   *  as though it were the true figure. */
+  exact: boolean;
   disabled: boolean;
 }) {
   return (
@@ -2288,7 +2294,10 @@ export default function StatePane({
         <label htmlFor="state" className="font-semibold">
           State
         </label>
-        <span className="text-sm text-stone">{tokens} tokens</span>
+        <span className="text-sm text-stone">
+          {exact ? "" : "≈"}
+          {tokens} tokens
+        </span>
       </div>
       <textarea
         id="state"
@@ -2452,7 +2461,7 @@ export default function SamplesRail({
 `src/components/cards/ConsistencyNoulCard.tsx`:
 
 ```tsx
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { docsUrl, getDefinition, getEntry } from "../../cookbooks";
 import type { Engine, NoulAnswer } from "../../engine";
 import { formatDuration, formatPercent } from "../../lib/format";
@@ -2475,6 +2484,8 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
   const entry = getEntry(ID);
 
   const [state, setState] = useState(definition.samples[0].text);
+  const [tokens, setTokens] = useState(() => engine.countTokens(definition.samples[0].text));
+  const [tokensExact, setTokensExact] = useState(false);
   const [answers, setAnswers] = useState<Record<string, NoulAnswer> | null>(null);
   const [band, setBand] = useState(DEFAULT_BAND);
   const [elapsed, setElapsed] = useState<number | null>(null);
@@ -2488,6 +2499,34 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
   );
   const summary = bandSummary(routed);
   const verdict = routed.length > 0 ? claimVerdict(routed) : null;
+
+  // The tokenizer lives in the worker, so an exact count is only available
+  // asynchronously. Show the synchronous estimate immediately, then replace it
+  // once the real count arrives. Debounced so typing does not queue a request
+  // per keystroke, and guarded so a slow reply for older text cannot overwrite
+  // the count for newer text.
+  useEffect(() => {
+    setTokens(engine.countTokens(state));
+    setTokensExact(false);
+    if (!engine.primeTokenCount) return;
+    let current = true;
+    const timer = setTimeout(() => {
+      engine
+        .primeTokenCount?.(state)
+        .then((exactCount) => {
+          if (!current) return;
+          setTokens(exactCount);
+          setTokensExact(true);
+        })
+        .catch(() => {
+          // An estimate already shows; a failed count is not worth surfacing.
+        });
+    }, 300);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [engine, state]);
 
   const run = async () => {
     setRunning(true);
@@ -2526,7 +2565,8 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
         <StatePane
           value={state}
           onChange={setState}
-          tokens={engine.countTokens(state)}
+          tokens={tokens}
+          exact={tokensExact}
           disabled={running}
         />
 

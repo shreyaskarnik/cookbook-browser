@@ -316,4 +316,18 @@ describe("ConsistencyNoulCard", () => {
     expect(screen.getByRole("textbox", { name: /state/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /run/i })).not.toBeDisabled();
   });
+
+  it("cannot show a duration without answers, whatever the sequence", async () => {
+    render(<ConsistencyNoulCard engine={pinned} />);
+    await userEvent.click(screen.getByRole("button", { name: /run/i }));
+    // "questions in one request" (the duration span) is more specific than
+    // "in one request" alone — QuestionsPane's own header also reads "all in
+    // one request", so the looser pattern matches both and is ambiguous.
+    expect(await screen.findByText(/questions in one request/)).toBeInTheDocument();
+
+    // Pick a different sample: answers and their timing must disappear together.
+    await userEvent.click(screen.getByRole("button", { name: /Thin file, late report/ }));
+    expect(screen.queryByText(/questions in one request/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("answer-covered")).not.toBeInTheDocument();
+  });
 });

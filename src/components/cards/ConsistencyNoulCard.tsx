@@ -18,6 +18,27 @@ import StatePane from "../panes/StatePane";
 
 const ID = "consistency-noul";
 
+/** One finished run. These three always travel together: a duration describes
+ *  a set of answers, and both describe one exact state string. */
+type Completed = {
+  forState: string;
+  answers: Record<string, NoulAnswer>;
+  elapsedMs: number;
+};
+
+/** Everything a run produces, in one value, so the parts cannot drift apart.
+ *  `running` and `failed` carry the previous `Completed` forward — a re-run in
+ *  flight, or one that just failed, does not erase results still on screen:
+ *  the textarea is disabled while running, so `state` cannot have moved
+ *  underneath a failed attempt, and the previous answers are still correct
+ *  for the text they describe. `elapsedMs` only ever reads from `"ok"`, so a
+ *  failed run still cannot show a duration, even though `previous` has one. */
+type Run =
+  | { kind: "idle" }
+  | { kind: "running"; previous: Completed | null }
+  | { kind: "ok"; completed: Completed }
+  | { kind: "failed"; message: string; previous: Completed | null };
+
 /** `decide`'s return type covers `choice` and `score` answers too; this cookbook
  *  only ever asks noul questions, but nothing at the type level enforces that.
  *  A future cookbook copied from this file with mixed question types would
@@ -61,16 +82,21 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
   const [state, setState] = useState(definition.samples[0].text);
   const [tokens, setTokens] = useState(() => engine.countTokens(definition.samples[0].text));
   const [tokensExact, setTokensExact] = useState(false);
-  const [answers, setAnswers] = useState<Record<string, NoulAnswer> | null>(null);
-  // The exact text `answers` was produced from. Compared against the live `state`
-  // to detect when a run's results no longer describe what is in the box — the
-  // textarea is disabled while `running`, so this can only drift after a run has
-  // finished and the visitor keeps typing.
-  const [answeredState, setAnsweredState] = useState<string | null>(null);
   const [band, setBand] = useState(DEFAULT_BAND);
-  const [elapsed, setElapsed] = useState<number | null>(null);
-  const [running, setRunning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [run, setRun] = useState<Run>({ kind: "idle" });
+
+  // Derived, rather than stored, so the parts cannot drift apart.
+  const completed =
+    run.kind === "ok" ? run.completed
+    : run.kind === "running" || run.kind === "failed" ? run.previous
+    : null;
+  const answers = completed?.answers ?? null;
+  // True once the claim text has moved on from the text these answers describe.
+  // The answers stay on screen — re-routing them by dragging the band is still a
+  // reasonable thing to do — but they are no longer about what is in the box.
+  const stale = completed !== null && completed.forState !== state;
+  const running = run.kind === "running";
+  const error = run.kind === "failed" ? run.message : null;
 
   // Re-routing is pure, so dragging the slider re-renders without touching the model.
   const routed = useMemo(
@@ -79,10 +105,11 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
   );
   const summary = bandSummary(routed);
   const verdict = routed.length > 0 ? claimVerdict(routed) : null;
-  // True once the claim text has moved on from the text these answers describe.
-  // The answers stay on screen — re-routing them by dragging the band is still a
-  // reasonable thing to do — but they are no longer about what is in the box.
-  const stale = answers !== null && state !== answeredState;
+  // Only reads from a run that itself completed — `completed` also holds a
+  // stale run's duration while `running`/`failed`, but showing that duration
+  // beside a fresh attempt (or a failure banner) would read as though it
+  // timed the attempt in progress, rather than the one before it.
+  const elapsed = run.kind === "ok" ? run.completed.elapsedMs : null;
 
   // The tokenizer lives in the worker, so an exact count is only available
   // asynchronously. Show the synchronous estimate immediately, then replace it
@@ -115,32 +142,28 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
     };
   }, [engine, state]);
 
-  const run = async () => {
-    setRunning(true);
-    setError(null);
+  const runCard = async () => {
+    // Carried forward into both `running` and `failed`, so a re-run in
+    // flight — or one that just failed — does not blank out results still
+    // on screen from the run before it.
+    const previous = run.kind === "ok" ? run.completed : run.kind === "failed" ? run.previous : null;
+    setRun({ kind: "running", previous });
     const started = performance.now();
     try {
       const result = await engine.decide(state, definition.questions);
-      setElapsed(performance.now() - started);
-      setAnswers(assertNoulAnswers(result));
-      setAnsweredState(state);
+      setRun({
+        kind: "ok",
+        completed: {
+          forState: state,
+          answers: assertNoulAnswers(result),
+          elapsedMs: performance.now() - started,
+        },
+      });
     } catch (caught) {
-      // The textarea is disabled while running, so `state` cannot have changed
-      // underneath a failed attempt — any answers already on screen are still
-      // correct for it and are left in place; the error explains what happened
-      // to this attempt, not that the previous results are wrong.
-      //
-      // `elapsed`, though, describes a specific request-response round trip.
-      // A failed attempt never completed one, so the previous run's timing is
-      // cleared rather than left sitting beside the new error — otherwise it
-      // reads as though it timed the attempt that just failed.
-      setElapsed(null);
       // `describeError` guarantees a non-empty sentence — this is rendered
       // to the visitor, and a rejection here need not have round-tripped
       // through the worker's own error handling to reach this catch.
-      setError(describeError(caught));
-    } finally {
-      setRunning(false);
+      setRun({ kind: "failed", message: describeError(caught), previous });
     }
   };
 
@@ -179,7 +202,7 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
         <div className="flex items-center gap-4">
           <button
             type="button"
-            onClick={run}
+            onClick={runCard}
             disabled={running}
             className="rounded-xl bg-ink px-4 py-2 font-semibold text-white disabled:opacity-60"
           >
@@ -299,12 +322,10 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
         samples={definition.samples}
         onPick={(sample) => {
           setState(sample.text);
-          setAnswers(null);
-          setAnsweredState(null);
-          setElapsed(null);
-          // Otherwise a failure banner from the previous sample survives the
-          // switch, now describing a claim that was never run.
-          setError(null);
+          // One assignment clears answers, their timing, and any error
+          // together — otherwise a failure banner from the previous sample
+          // survives the switch, now describing a claim that was never run.
+          setRun({ kind: "idle" });
         }}
         disabled={running}
       />

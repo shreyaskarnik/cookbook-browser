@@ -1,4 +1,12 @@
 allowBuilds:
-  esbuild: set this to true or false
-  onnxruntime-node: set this to true or false
-  protobufjs: set this to true or false
+  # esbuild: Vite's bundler depends on it to fetch the platform-specific binary
+  # via its postinstall script. Without this, `pnpm build` fails. Must be true.
+  esbuild: true
+  # onnxruntime-node: Node-native ONNX runtime binding. This is a browser-only app
+  # that loads onnxruntime-web (via @huggingface/transformers). The Node binding
+  # is never used. Build script not needed.
+  onnxruntime-node: false
+  # protobufjs: Protocol buffer runtime used by transformers at runtime. The npm
+  # package includes precompiled JavaScript; no build step is required for browser
+  # usage. Build script not needed.
+  protobufjs: false

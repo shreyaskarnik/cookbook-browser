@@ -27,6 +27,20 @@ export type RoutingRule = (
 
 const percent = (value: number) => `${Math.round(value * 100)}%`;
 
+/** The human label for `key`, never the raw key itself. Throws rather than
+ *  falling back to `key` — a missing label is a cookbook bug, and a raw
+ *  camelCase key must never reach a visitor (see commit 47eaa4f, which moved
+ *  label substitution out of pure-logic code for exactly this reason). */
+function resolveLabel(key: string, labels: Record<string, string>): string {
+  const label = labels[key];
+  if (label === undefined) {
+    throw new Error(
+      `No label for question "${key}". Every question needs one; a raw key must never reach a visitor.`
+    );
+  }
+  return label;
+}
+
 /** Probabilities inside [low, high], bounds included, go to a person.
  *  Used by Self-consistency: nouls. */
 export function bandRule(low: number, high: number): RoutingRule {
@@ -38,7 +52,7 @@ export function bandRule(low: number, high: number): RoutingRule {
       const inside = answer.probability >= low && answer.probability <= high;
       return {
         key,
-        label: labels[key] ?? key,
+        label: resolveLabel(key, labels),
         disposition: inside ? "review" : "auto",
         detail: percent(answer.probability),
         value: answer.probability,
@@ -56,7 +70,7 @@ export function minimumConfidenceRule(floor: number): RoutingRule {
       }
       return {
         key,
-        label: labels[key] ?? key,
+        label: resolveLabel(key, labels),
         disposition: answer.confidence >= floor ? "auto" : "review",
         detail: `${answer.choice} (${percent(answer.confidence)})`,
         value: answer.confidence,

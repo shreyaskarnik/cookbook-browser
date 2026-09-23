@@ -14,8 +14,9 @@ function hash(text: string): number {
 /**
  * An Engine that answers without a model. Every test in this project uses it, so
  * the suite runs in milliseconds and CI never downloads weights. Answers are
- * deterministic; `overrides` pins an exact probability per question key so a
- * routing test can place a case precisely inside or outside the band.
+ * deterministic; `overrides` pins an exact probability for noul questions only,
+ * allowing a routing test to place a case precisely inside or outside the band.
+ * Overrides on choice or score questions throw an error.
  */
 export class FakeEngine implements Engine {
   readonly runtime: EngineRuntime = {
@@ -25,7 +26,15 @@ export class FakeEngine implements Engine {
     dtype: "none",
   };
 
-  constructor(private readonly overrides: Record<string, number> = {}) {}
+  constructor(private readonly overrides: Record<string, number> = {}) {
+    for (const [key, value] of Object.entries(overrides)) {
+      if (typeof value !== "number" || value < 0 || value > 1) {
+        throw new Error(
+          `FakeEngine override for "${key}" must be a number between 0 and 1, got ${value}`
+        );
+      }
+    }
+  }
 
   async decide(
     state: string,
@@ -33,8 +42,15 @@ export class FakeEngine implements Engine {
   ): Promise<Record<string, Answer>> {
     const answers: Record<string, Answer> = {};
     for (const [key, question] of Object.entries(questions)) {
+      if (key in this.overrides) {
+        if (question.type !== "noul") {
+          throw new Error(
+            `FakeEngine override for "${key}" is only supported for noul questions, but got type "${question.type}". Pinning probabilities is implemented for noul questions only.`
+          );
+        }
+      }
       const seed = this.overrides[key] ?? hash(state + key + question.instructions);
-      answers[key] = this.answer(question, seed);
+      answers[key] = this.answer(question, seed, state, key);
     }
     return answers;
   }
@@ -45,7 +61,7 @@ export class FakeEngine implements Engine {
 
   async dispose(): Promise<void> {}
 
-  private answer(question: Question, seed: number): Answer {
+  private answer(question: Question, seed: number, state: string, key: string): Answer {
     if (question.type === "noul") {
       return {
         type: "noul",
@@ -59,7 +75,9 @@ export class FakeEngine implements Engine {
     // export a helper for this, so read the field directly.
     const labels = question.options as readonly string[];
     // Spread the mass deterministically over the labels, then normalise.
-    const weights = labels.map((label, index) => hash(label + index) + seed);
+    // For choice/score, combine the label hash with the state and question to get
+    // a deterministic but state-aware distribution.
+    const weights = labels.map((label, index) => hash(state + key + label + index));
     const total = weights.reduce((sum, weight) => sum + weight, 0);
     const probabilities: Record<string, number> = {};
     labels.forEach((label, index) => {

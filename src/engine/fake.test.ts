@@ -58,4 +58,78 @@ describe("FakeEngine", () => {
       dtype: "none",
     });
   });
+
+  it("throws if an override is used on a choice question", async () => {
+    const engine = new FakeEngine({ team: 0.5 });
+    await expect(
+      engine.decide("state", { team: choice("Which?", ["a", "b"]) })
+    ).rejects.toThrow(
+      'FakeEngine override for "team" is only supported for noul questions, but got type "choice"'
+    );
+  });
+
+  it("throws if an override is used on a score question", async () => {
+    const engine = new FakeEngine({ urgency: 0.5 });
+    await expect(
+      engine.decide("state", { urgency: score("How urgent?", ["low", "high"]) })
+    ).rejects.toThrow(
+      'FakeEngine override for "urgency" is only supported for noul questions, but got type "score"'
+    );
+  });
+
+  it("throws if an override value is below 0", () => {
+    expect(() => new FakeEngine({ q: -0.1 })).toThrow(
+      'FakeEngine override for "q" must be a number between 0 and 1, got -0.1'
+    );
+  });
+
+  it("throws if an override value is above 1", () => {
+    expect(() => new FakeEngine({ q: 1.1 })).toThrow(
+      'FakeEngine override for "q" must be a number between 0 and 1, got 1.1'
+    );
+  });
+
+  it("choice and score distributions sum to 1 without overrides", async () => {
+    const engine = new FakeEngine();
+    const answers = await engine.decide("state", {
+      choice_q: choice("Which?", ["x", "y", "z"]),
+      score_q: score("Rate:", ["bad", "okay", "good"]),
+    });
+
+    const choiceAnswer = answers.choice_q;
+    if (choiceAnswer.type !== "choice") throw new Error("expected choice");
+    const choiceTotal = Object.values(choiceAnswer.probabilities).reduce(
+      (sum, p) => sum + p,
+      0
+    );
+    expect(choiceTotal).toBeCloseTo(1, 5);
+
+    const scoreAnswer = answers.score_q;
+    if (scoreAnswer.type !== "score") throw new Error("expected score");
+    const scoreTotal = Object.values(scoreAnswer.probabilities).reduce(
+      (sum, p) => sum + p,
+      0
+    );
+    expect(scoreTotal).toBeCloseTo(1, 5);
+  });
+
+  it("choice and score distributions are deterministic for the same state and question", async () => {
+    const engine = new FakeEngine();
+    const first = await engine.decide("state", {
+      choice_q: choice("Which?", ["x", "y", "z"]),
+      score_q: score("Rate:", ["bad", "okay", "good"]),
+    });
+    const second = await engine.decide("state", {
+      choice_q: choice("Which?", ["x", "y", "z"]),
+      score_q: score("Rate:", ["bad", "okay", "good"]),
+    });
+
+    if (first.choice_q.type !== "choice") throw new Error("expected choice");
+    if (second.choice_q.type !== "choice") throw new Error("expected choice");
+    expect(first.choice_q.probabilities).toEqual(second.choice_q.probabilities);
+
+    if (first.score_q.type !== "score") throw new Error("expected score");
+    if (second.score_q.type !== "score") throw new Error("expected score");
+    expect(first.score_q.probabilities).toEqual(second.score_q.probabilities);
+  });
 });

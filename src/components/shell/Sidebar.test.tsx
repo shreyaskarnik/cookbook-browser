@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { CATALOG } from "../../cookbooks/catalog";
 import Sidebar from "./Sidebar";
 
 describe("Sidebar", () => {
@@ -35,7 +36,9 @@ describe("Sidebar", () => {
 
   it("says plainly which ones are not built yet", () => {
     render(<Sidebar selected="consistency-noul" onSelect={vi.fn()} />);
-    expect(screen.getAllByText("soon").length).toBe(17);
+    expect(screen.getAllByText("soon")).toHaveLength(
+      CATALOG.filter((entry) => entry.status === "planned").length
+    );
   });
 
   it("shows no 4B marker for a cookbook that only requires kev-0.6b", () => {

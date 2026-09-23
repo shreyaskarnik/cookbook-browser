@@ -1,10 +1,17 @@
 import { CATALOG } from "./catalog";
+import consistencyChoice from "./consistencyChoice";
 import consistencyNoul from "./consistencyNoul";
 import type { CookbookDefinition, CookbookEntry } from "./types";
 
 const DEFINITIONS: Record<string, CookbookDefinition> = {
   [consistencyNoul.id]: consistencyNoul,
+  [consistencyChoice.id]: consistencyChoice,
 };
+
+/** The ids that have a real definition registered above. The catalog's
+ *  "built" status should always agree with membership here — derived so
+ *  that registering a definition is the only edit a new card requires. */
+export const BUILT_IDS: readonly string[] = Object.keys(DEFINITIONS);
 
 export function getEntry(id: string): CookbookEntry {
   const entry = CATALOG.find((candidate) => candidate.id === id);

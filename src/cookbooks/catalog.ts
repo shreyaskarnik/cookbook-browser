@@ -28,7 +28,7 @@ export const CATALOG: readonly CookbookEntry[] = [
     category: "Self-consistency",
     description:
       "Add uncertain outcomes to moderation decisions and compare label agreement with automatic action rates.",
-    status: "planned",
+    status: "built",
   },
   {
     id: "parallel-questions",

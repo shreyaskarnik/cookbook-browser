@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { CATALOG, CATEGORIES, builtCookbooks, docsUrl } from "./catalog";
+import { CATALOG, CATEGORIES, docsUrl } from "./catalog";
+import { BUILT_IDS } from "./index";
 import consistencyNoul from "./consistencyNoul";
 
 describe("CATALOG", () => {
@@ -28,10 +29,11 @@ describe("CATALOG", () => {
     ]);
   });
 
-  it("marks exactly one cookbook built in Phase 1", () => {
-    expect(builtCookbooks().map((entry) => entry.id)).toEqual([
-      "consistency-noul",
-    ]);
+  it("marks every cookbook that has a definition as built", () => {
+    for (const entry of CATALOG) {
+      const hasDefinition = BUILT_IDS.includes(entry.id);
+      expect(entry.status).toBe(hasDefinition ? "built" : "planned");
+    }
   });
 
   it("links each entry to its cookbook page", () => {

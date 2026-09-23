@@ -30,7 +30,7 @@ export default function ModelRequirement({
   return (
     <div className="rounded-2xl bg-amber-50 p-4 text-sm">
       <p>
-        <span className="font-semibold">This cookbook works better on {name}. </span>
+        <span className="font-semibold">This cookbook requires {name}. </span>
         {requires.why}
       </p>
       <p className="mt-2 text-stone">

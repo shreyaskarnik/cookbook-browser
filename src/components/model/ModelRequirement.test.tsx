@@ -46,4 +46,12 @@ describe("ModelRequirement", () => {
     await userEvent.click(screen.getByRole("button", { name: /load kev 4b/i }));
     expect(onUpgrade).toHaveBeenCalledTimes(1);
   });
+
+  it("states the requirement rather than ranking the two models", () => {
+    render(
+      <ModelRequirement requires={needs4b} runtime={runtime("onnx-community/kev-0.6b-ONNX")} onUpgrade={vi.fn()} />
+    );
+    expect(screen.getByText(/this cookbook requires kev 4b/i)).toBeInTheDocument();
+    expect(screen.queryByText(/works better/i)).not.toBeInTheDocument();
+  });
 });

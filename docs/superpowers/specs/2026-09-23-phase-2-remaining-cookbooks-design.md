@@ -65,15 +65,43 @@ CatBoost regressor, which requires model training in the browser. Either drop it
 read-only walkthrough with no live inference and say plainly that it does not run here. Seventeen
 listed cookbooks therefore become sixteen built ones.
 
-### Wave 1 — proven mechanics, 0.6B (6 cards)
+### Wave 1 — proven mechanics, 0.6B (6 cards, in three plans)
 
 Self-consistency: choices · Guardrails for LLMs · Classifying RAG passages · Double-checking
 citations · Function calling · Parallel questions.
 
-The first four are the built card's shape: typed questions over one editable state with a
-threshold. Function calling adds a choice over tools with confidence gating. Parallel questions
-adds a wall-clock comparison of N separate calls against one batched call — its interest is a
-timing measurement, not model difficulty, so it carries no viability risk.
+**Revised after fetching the published questions.** These six were originally grouped as "the same
+shape as the built card". They are not, and the difference is structural rather than cosmetic:
+
+| Cookbook | Shape | Its own routing rule |
+|---|---|---|
+| Self-consistency: nouls (built) | one state, 14 nouls | symmetric band, 0.30–0.70 |
+| Self-consistency: choices | one state, 8 choices | single floor, 0.60 minimum probability |
+| Guardrails for LLMs | one state, 4 nouls + a severity score | two thresholds (0.35, 0.70) plus a severity override at 2.0 |
+| Double-checking citations | **a list of citations**, 1 choice each | single auto-accept at 0.8 |
+| Classifying RAG passages | **a list of passages**, 4 nouls each | **ordered cascade**: injection 0.70, contradicts 0.70, relevance floor 0.45, evidence 0.55 |
+| Function calling | one state, a tool choice | confidence gates whether the call is made |
+| Parallel questions | one state, many questions | none — the interest is wall-clock, not routing |
+
+Two consequences. First, **routing is per-cookbook**: five cookbooks, five genuinely different
+rules, so the rule belongs in the definition rather than the card. Second, **citations and RAG
+passages are a different shape** — the same questions run over a *list* of items and routed
+individually, which the app has no mechanic for.
+
+Wave 1 therefore splits:
+
+- **1a — the foundation, plus the two cookbooks that fit the existing single-state shape.** The run
+  state collapses into one union, routing moves into the definitions, the model requirement and its
+  callout are built, and Self-consistency: choices and Guardrails for LLMs ship. Plan written.
+- **1b — the per-item mechanic, plus the two cookbooks that need it.** A list of items, the same
+  questions against each, routed individually, with the item list itself editable. Carries Double-
+  checking citations and Classifying RAG passages.
+- **1c — the two cookbooks with their own interaction.** Function calling (tool probabilities
+  competing, with confidence gating the call) and Parallel questions (N separate requests against
+  one batched request, compared on wall-clock). Neither shares a mechanic with anything else.
+
+This split came from doing the homework rather than from planning: the shapes only became visible
+once the real questions were fetched, which is the same argument as rule 1.
 
 ### Wave 2 — requires or recommends 4B (4 cards)
 

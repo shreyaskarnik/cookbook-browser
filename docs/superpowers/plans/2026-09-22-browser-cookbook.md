@@ -970,9 +970,10 @@ describe("claimVerdict", () => {
 });
 ```
 
-Note: the last test imports the cookbook definition from Task 4. If Task 4 has not landed yet,
-write the test now, let it fail on the missing import, and skip only that one case with
-`it.skip` plus a comment naming Task 4 — then un-skip it as part of Task 4.
+Note: the last test imports the cookbook definition from `src/cookbooks/consistencyNoul.ts`,
+which Task 4 creates. **Task 4 is executed before Task 3** so that file already exists — write
+the test normally, with no skip. (Task 4 has no dependency on this file in return, so the order
+is safe in one direction only.)
 
 - [ ] **Step 8: Run the tests**
 

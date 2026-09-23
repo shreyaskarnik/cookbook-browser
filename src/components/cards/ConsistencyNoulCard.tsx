@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { docsUrl, getDefinition, getEntry } from "../../cookbooks";
+import { bandRule } from "../../cookbooks/routing";
 import type { Answer, Engine, NoulAnswer } from "../../engine";
 import { describeError } from "../../engine";
 import { formatDuration, formatPercent } from "../../lib/format";
@@ -11,6 +12,7 @@ import {
   routeAll,
 } from "../../lib/routing";
 import type { ClaimVerdict } from "../../lib/routing";
+import ModelRequirement from "../model/ModelRequirement";
 import AnswersPane from "../panes/AnswersPane";
 import QuestionsPane from "../panes/QuestionsPane";
 import SamplesRail from "../panes/SamplesRail";
@@ -38,6 +40,11 @@ type Run =
   | { kind: "running"; previous: Completed | null }
   | { kind: "ok"; completed: Completed }
   | { kind: "failed"; message: string; previous: Completed | null };
+
+/** A token count and whether it came from the real tokenizer. One value,
+ *  because "42" and "that 42 is exact" are two facts about the same string and
+ *  a count without its provenance is an estimate shown as fact. */
+type TokenCount = { value: number; exact: boolean };
 
 /** `decide`'s return type covers `choice` and `score` answers too; this cookbook
  *  only ever asks noul questions, but nothing at the type level enforces that.
@@ -75,13 +82,23 @@ function describeVerdict(verdict: ClaimVerdict, labels: Record<string, string>):
     : `${criticalUncertainKeys.length} critical questions are uncertain.`;
 }
 
-export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
+export default function ConsistencyNoulCard({
+  engine,
+  onUpgrade,
+}: {
+  engine: Engine;
+  /** Threaded from `Shell` in a later plan. Absent here, `ModelRequirement`
+   *  still explains the requirement but omits the upgrade button. */
+  onUpgrade?: () => void;
+}) {
   const definition = getDefinition(ID);
   const entry = getEntry(ID);
 
   const [state, setState] = useState(definition.samples[0].text);
-  const [tokens, setTokens] = useState(() => engine.countTokens(definition.samples[0].text));
-  const [tokensExact, setTokensExact] = useState(false);
+  const [tokenCount, setTokenCount] = useState<TokenCount>(() => ({
+    value: engine.countTokens(definition.samples[0].text),
+    exact: false,
+  }));
   const [band, setBand] = useState(DEFAULT_BAND);
   const [run, setRun] = useState<Run>({ kind: "idle" });
 
@@ -99,12 +116,26 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
   const error = run.kind === "failed" ? run.message : null;
 
   // Re-routing is pure, so dragging the slider re-renders without touching the model.
+  // The headline (summary counts, claim verdict) is card-one-specific — see
+  // `src/lib/routing.ts` — and stays on `routeAll`'s `RoutedQuestion` vocabulary.
   const routed = useMemo(
     () => (answers ? routeAll(answers, band) : []),
     [answers, band]
   );
   const summary = bandSummary(routed);
   const verdict = routed.length > 0 ? claimVerdict(routed) : null;
+
+  // The per-row answers, in the shared `RoutedItem` vocabulary every cookbook's
+  // pane speaks. This cookbook's rule is a band, so it is rebuilt as
+  // `bandRule(band.low, band.high)` every time the slider moves — dragging the
+  // slider re-routing without re-asking the model is the whole point of this
+  // cookbook. The band slider itself is specific to band-routed cookbooks; a
+  // cookbook whose rule is, say, a minimum-confidence floor has no band to
+  // drag and shows different controls instead — that is expected, not a gap.
+  const routedItems = useMemo(
+    () => (answers ? bandRule(band.low, band.high)(answers, definition.labels) : []),
+    [answers, band, definition]
+  );
   // Only reads from a run that itself completed — `completed` also holds a
   // stale run's duration while `running`/`failed`, but showing that duration
   // beside a fresh attempt (or a failure banner) would read as though it
@@ -117,8 +148,7 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
   // per keystroke, and guarded so a slow reply for older text cannot overwrite
   // the count for newer text.
   useEffect(() => {
-    setTokens(engine.countTokens(state));
-    setTokensExact(false);
+    setTokenCount({ value: engine.countTokens(state), exact: false });
     // Captured in a local so it narrows to a defined function for the closure
     // below — `engine.primeTokenCount` itself would stay optional there, since
     // narrowing on a property access does not persist across a closure boundary.
@@ -129,8 +159,7 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
       primeTokenCount(state)
         .then((exactCount) => {
           if (!current) return;
-          setTokens(exactCount);
-          setTokensExact(true);
+          setTokenCount({ value: exactCount, exact: true });
         })
         .catch(() => {
           // An estimate already shows; a failed count is not worth surfacing.
@@ -186,11 +215,17 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
           </p>
         </header>
 
+        <ModelRequirement
+          requires={definition.requires}
+          runtime={engine.runtime}
+          onUpgrade={onUpgrade}
+        />
+
         <StatePane
           value={state}
           onChange={setState}
-          tokens={tokens}
-          exact={tokensExact}
+          tokens={tokenCount.value}
+          exact={tokenCount.exact}
           disabled={running}
         />
 
@@ -309,8 +344,7 @@ export default function ConsistencyNoulCard({ engine }: { engine: Engine }) {
             </section>
 
             <AnswersPane
-              routed={routed}
-              labels={definition.labels}
+              routed={routedItems}
               band={band}
               stale={stale}
             />

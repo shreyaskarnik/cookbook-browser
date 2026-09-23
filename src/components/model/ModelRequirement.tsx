@@ -22,7 +22,10 @@ export default function ModelRequirement({
 }: {
   requires: { model: ModelAlias; why: string };
   runtime: EngineRuntime;
-  onUpgrade: () => void;
+  /** Omitted when the card has nowhere to send an upgrade yet — the
+   *  explanation still renders, but a button that could not act would be a
+   *  promise the page cannot keep, so it is left out rather than made inert. */
+  onUpgrade?: () => void;
 }) {
   if (meetsRequirement(runtime.model, requires.model)) return null;
 
@@ -37,13 +40,15 @@ export default function ModelRequirement({
         You can run it on the model you have and see the result for yourself — on a
         page about confidence, a flat answer is worth seeing.
       </p>
-      <button
-        type="button"
-        onClick={onUpgrade}
-        className="mt-3 rounded-xl bg-ink px-3 py-2 font-semibold text-white"
-      >
-        Load {name}
-      </button>
+      {onUpgrade && (
+        <button
+          type="button"
+          onClick={onUpgrade}
+          className="mt-3 rounded-xl bg-ink px-3 py-2 font-semibold text-white"
+        >
+          Load {name}
+        </button>
+      )}
     </div>
   );
 }

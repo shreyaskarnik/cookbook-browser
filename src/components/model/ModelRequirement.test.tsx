@@ -54,4 +54,12 @@ describe("ModelRequirement", () => {
     expect(screen.getByText(/this cookbook requires kev 4b/i)).toBeInTheDocument();
     expect(screen.queryByText(/works better/i)).not.toBeInTheDocument();
   });
+
+  it("still explains the requirement but omits the button when there is nowhere to send an upgrade", () => {
+    render(
+      <ModelRequirement requires={needs4b} runtime={runtime("onnx-community/kev-0.6b-ONNX")} />
+    );
+    expect(screen.getByText(/all eight lines score identically/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /load kev 4b/i })).not.toBeInTheDocument();
+  });
 });

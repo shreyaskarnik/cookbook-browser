@@ -35,18 +35,30 @@ describe("ConsistencyNoulCard", () => {
     expect(within(row).getByText("95%")).toBeInTheDocument();
   });
 
+  it("routes through the cookbook's own rule, not a rule the card owns", async () => {
+    render(<ConsistencyNoulCard engine={pinned} />);
+    await userEvent.click(screen.getByRole("button", { name: /run/i }));
+    const row = await screen.findByTestId("answer-covered");
+    expect(row).toHaveAttribute("data-disposition", "auto");
+  });
+
+  it("shows no model banner when the loaded model meets the requirement", async () => {
+    render(<ConsistencyNoulCard engine={pinned} />);
+    expect(screen.queryByRole("button", { name: /load kev/i })).not.toBeInTheDocument();
+  });
+
   it("puts a probability outside the band on the automatic side", async () => {
     render(<ConsistencyNoulCard engine={pinned} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
     const row = await screen.findByTestId("answer-covered");
-    expect(row).toHaveAttribute("data-verdict", "yes");
+    expect(row).toHaveAttribute("data-disposition", "auto");
   });
 
   it("escalates a probability inside the band", async () => {
     render(<ConsistencyNoulCard engine={pinned} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
     const row = await screen.findByTestId("answer-exclusionApplies");
-    expect(row).toHaveAttribute("data-verdict", "uncertain");
+    expect(row).toHaveAttribute("data-disposition", "review");
   });
 
   it("moves a row to review when the band widens, without re-running the model", async () => {
@@ -54,7 +66,7 @@ describe("ConsistencyNoulCard", () => {
     render(<ConsistencyNoulCard engine={pinned} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
     const row = await screen.findByTestId("answer-covered");
-    expect(row).toHaveAttribute("data-verdict", "yes");
+    expect(row).toHaveAttribute("data-disposition", "auto");
     expect(decideSpy).toHaveBeenCalledTimes(1);
 
     // A range input takes a change event; it cannot be cleared and typed into.
@@ -63,8 +75,8 @@ describe("ConsistencyNoulCard", () => {
     });
 
     expect(await screen.findByTestId("answer-covered")).toHaveAttribute(
-      "data-verdict",
-      "uncertain"
+      "data-disposition",
+      "review"
     );
     // The row moved, but the model was never asked again.
     expect(decideSpy).toHaveBeenCalledTimes(1);
@@ -168,7 +180,7 @@ describe("ConsistencyNoulCard", () => {
     render(<ConsistencyNoulCard engine={pinned} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
     const row = await screen.findByTestId("answer-covered");
-    expect(row).toHaveAttribute("data-verdict", "yes");
+    expect(row).toHaveAttribute("data-disposition", "auto");
 
     const state = screen.getByRole("textbox", { name: /state/i });
     await userEvent.type(state, " Addendum: nothing about this changes the facts.");
@@ -184,8 +196,8 @@ describe("ConsistencyNoulCard", () => {
       target: { value: "0.99" },
     });
     expect(await screen.findByTestId("answer-covered")).toHaveAttribute(
-      "data-verdict",
-      "uncertain"
+      "data-disposition",
+      "review"
     );
   });
 
@@ -208,7 +220,7 @@ describe("ConsistencyNoulCard", () => {
     render(<ConsistencyNoulCard engine={flaky} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
     const row = await screen.findByTestId("answer-covered");
-    expect(row).toHaveAttribute("data-verdict", "yes");
+    expect(row).toHaveAttribute("data-disposition", "auto");
 
     const state = screen.getByRole("textbox", { name: /state/i });
     await userEvent.type(state, " A late addition to the file.");
@@ -218,7 +230,7 @@ describe("ConsistencyNoulCard", () => {
 
     expect(await screen.findByText(/ran out of memory/)).toBeInTheDocument();
     // The failed attempt did not erase the previous, still-stale results.
-    expect(screen.getByTestId("answer-covered")).toHaveAttribute("data-verdict", "yes");
+    expect(screen.getByTestId("answer-covered")).toHaveAttribute("data-disposition", "auto");
     expect(screen.getAllByText(/stale/i).length).toBeGreaterThan(0);
   });
 

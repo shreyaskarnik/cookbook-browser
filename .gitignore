@@ -2,3 +2,7 @@ node_modules
 dist
 *.tsbuildinfo
 .DS_Store
+
+# Copied from onnxruntime-web at dev/build time by scripts/copy-onnx-runtime.mjs.
+# ~25.6 MB; never committed — see that script's header comment.
+/public/onnxruntime/

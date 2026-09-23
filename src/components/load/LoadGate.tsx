@@ -103,7 +103,7 @@ export default function LoadGate({ onReady }: { onReady: (engine: Engine) => voi
         {info
           ? info.isCached
             ? `Already downloaded — loads from this browser's cache. Runs on ${info.device}.`
-            : `${formatBytes(info.downloadSize)} to download, once. Runs on ${info.device}.`
+            : `${formatBytes(info.downloadSize)} to download, plus a few megabytes of runtime, once. Runs on ${info.device}.`
           : infoFailed
             ? `About ${formatBytes(selected.approximateBytes)} to download, once.`
             : "Checking the download size…"}

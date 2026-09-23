@@ -16,14 +16,17 @@ describe("bandRule", () => {
     const [item] = route({ q: noul(0.5) }, { q: "Question" });
     expect(item.disposition).toBe("review");
     expect(item.value).toBe(0.5);
+    expect(item.detail).toBe("Review (50%)");
   });
   it("decides a probability outside the band automatically", () => {
     const high = route({ q: noul(0.95) }, { q: "Q" })[0];
     const low = route({ q: noul(0.05) }, { q: "Q" })[0];
     expect(high.disposition).toBe("auto");
     expect(high.value).toBe(0.95);
+    expect(high.detail).toBe("Yes (95%)");
     expect(low.disposition).toBe("auto");
     expect(low.value).toBe(0.05);
+    expect(low.detail).toBe("No (5%)");
   });
   it("treats both bounds as inside the band, matching the cookbook", () => {
     expect(route({ q: noul(0.3) }, { q: "Q" })[0].disposition).toBe("review");

@@ -32,7 +32,7 @@ describe("ConsistencyNoulCard", () => {
     render(<ConsistencyNoulCard engine={pinned} />);
     await userEvent.click(screen.getByRole("button", { name: /run/i }));
     const row = await screen.findByTestId("answer-covered");
-    expect(within(row).getByText("95%")).toBeInTheDocument();
+    expect(within(row).getByText("Yes (95%)")).toBeInTheDocument();
   });
 
   it("routes through the cookbook's own rule, not a rule the card owns", async () => {

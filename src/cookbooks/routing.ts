@@ -50,11 +50,17 @@ export function bandRule(low: number, high: number): RoutingRule {
         throw new Error(`bandRule expects noul answers; "${key}" is a ${answer.type}.`);
       }
       const inside = answer.probability >= low && answer.probability <= high;
+      // Three-way word alongside a two-way disposition: "yes" and "no" are both
+      // automatic (a person is not needed either way), but they are opposite
+      // answers — "covered?" at 26% and at 89% are different facts, even though
+      // neither needs a person. `disposition` says whether a person is needed;
+      // `word` says what the answer actually was.
+      const word = inside ? "Review" : answer.probability > high ? "Yes" : "No";
       return {
         key,
         label: resolveLabel(key, labels),
         disposition: inside ? "review" : "auto",
-        detail: percent(answer.probability),
+        detail: `${word} (${percent(answer.probability)})`,
         value: answer.probability,
       };
     });

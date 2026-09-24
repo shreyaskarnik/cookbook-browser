@@ -8,5 +8,5 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["vite.config.ts", "vitest.config.ts", "vitest.smoke.config.ts", "vitest.smoke1b.config.ts", "scripts"]
+  "include": ["vite.config.ts", "vitest.config.ts", "vitest.smoke.config.ts", "vitest.smoke1b.config.ts", "vitest.citations.config.ts", "scripts"]
 }

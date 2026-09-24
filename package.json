@@ -10,7 +10,8 @@
     "test:watch": "vitest",
     "smoke": "vitest run --config vitest.smoke.config.ts",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
-    "smoke:1b": "vitest run --config vitest.smoke1b.config.ts"
+    "smoke:1b": "vitest run --config vitest.smoke1b.config.ts",
+    "smoke:citations": "vitest run --config vitest.citations.config.ts"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.0",

@@ -59,3 +59,24 @@ Timing: 0.6B 126–235 ms per item; 4B 0.8–1.3 s per item.
 
 One query and five passages; three citations. Sound for a scope decision, unsound for any
 per-card accuracy claim — which this project does not make anyway.
+
+## Addendum — the shipped citations, measured on themselves
+
+The probe above used citations written for the probe. The card ships a different set, and
+`requires.why` makes a claim about where the floor has a case to catch — which is a claim about
+the items a visitor actually sees. Measured with `pnpm smoke:citations`, CPU, q4:
+
+| Citation | kev-0.6b | kev-4b |
+|---|---|---|
+| retention-window | verified 71% → a person | verified 99% → auto |
+| key-rotation | unsupported 68% → a person | contradicted 98% → auto |
+| replication-cost | unsupported 87% → auto | unsupported 59% → **a person** |
+| log-retention | pre-check, no model call | pre-check, no model call |
+| versioning-lock | verified 90% → auto | verified 98% → auto |
+
+Per item: 128–204 ms at 0.6B, 974–1027 ms at 4B.
+
+The claim this replaced said no citation falls below the floor at 4B. On the shipped set one does.
+It was not fabricated — it was true of the probe's citations — which is the point: a measurement
+generalised onto different content reads exactly like a measured one and is not. Caught by review,
+which asked whether `why` matched what was actually measured rather than whether it sounded right.

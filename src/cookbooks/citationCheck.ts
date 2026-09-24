@@ -180,16 +180,24 @@ for (const citation of citations) {
   if (answer.confidence < FLOOR) sendToHuman(citation, answer);
   else recordVerdict(citation, answer.choice);
 }`,
-  // Measured on the probe's three-citation set (see
-  // docs/superpowers/notes/2026-09-24-wave-1b-probe.md): the says-nothing
-  // citation lands at 69% confidence at 0.6B, below the 0.8 floor, and routes
-  // to a person; at 4B the same citation lands at 82% and clears the floor
-  // instead. Both sizes call the contradicted citation "supports" — 4B more
-  // confidently, at 95% versus 84% — so this is about where the floor has a
-  // case to catch, not about which size gets more verdicts right.
+  // Measured on THESE items, not on the probe's — `pnpm smoke:citations`, CPU,
+  // q4. An earlier version of this `why` described the probe's citations while
+  // reading as a claim about the ones a visitor sees; they are different text
+  // and were never run.
+  //
+  //                    kev-0.6b                     kev-4b
+  //   retention-window verified   71%  to a person  verified     99%  auto
+  //   key-rotation     unsupported 68% to a person  contradicted 98%  auto
+  //   replication-cost unsupported 87% auto         unsupported  59%  to a person
+  //   log-retention    pre-check, no model call     pre-check, no model call
+  //   versioning-lock  verified   90%  auto         verified     98%  auto
+  //
+  // Per item: 128–204 ms at 0.6B, 974–1027 ms at 4B. The floor has a case to
+  // catch at both sizes, so this is about how long a list takes to work
+  // through, not about which size produces which verdict.
   requires: {
     model: "kev-0.6b",
-    why: "At kev-4b, none of these citations' confidences fall below the 0.8 auto-accept floor, so it never routes anything to a person; at kev-0.6b, one does.",
+    why: "Two of these citations land below the 0.8 auto-accept floor at kev-0.6b and go to a person, one does at kev-4b, and each citation is its own request — about a fifth of a second here against about a second on the larger model.",
   },
   items: ITEMS,
 };

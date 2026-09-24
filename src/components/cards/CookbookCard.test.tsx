@@ -535,6 +535,11 @@ const spec = getDefinition(CITATIONS).items!;
 /** The citations this cookbook's own pre-check decides without a model call. */
 const preChecked = spec.items.filter((item) => spec.preCheck?.(item, spec.labelFor));
 
+/** What the card calls this list in a running sentence — read off the spec,
+ *  like everything else here, so a cookbook that renames its noun does not fail
+ *  tests whose subject is not its noun. */
+const noun = spec.noun.toLowerCase();
+
 /** One `relation` answer, shaped as the cookbook's rule expects. */
 const relationAnswer = (choice: string, confidence: number): Record<string, Answer> => ({
   relation: { type: "choice", choice, confidence, probabilities: { [choice]: confidence } },
@@ -587,7 +592,7 @@ describe("CookbookCard — Double-checking citations", () => {
 
     const total = spec.items.length;
     // The first request is open and nothing has landed yet.
-    expect(screen.getByText(new RegExp(`0 of ${total} citations`))).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`0 of ${total} ${noun}`))).toBeInTheDocument();
     expect(pending).toHaveLength(1);
 
     await act(async () => {
@@ -596,7 +601,7 @@ describe("CookbookCard — Double-checking citations", () => {
     });
 
     // One item has landed, and it is on screen while the rest are still out.
-    expect(screen.getByText(new RegExp(`1 of ${total} citations`))).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`1 of ${total} ${noun}`))).toBeInTheDocument();
     expect(screen.getAllByTestId(/^answer-/)).toHaveLength(1);
 
     // Let the rest of the list through, so the run finishes rather than
@@ -607,7 +612,7 @@ describe("CookbookCard — Double-checking citations", () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
     });
-    expect(await screen.findByText(new RegExp(`^${total} citations,`))).toBeInTheDocument();
+    expect(await screen.findByText(new RegExp(`^${total} ${noun},`))).toBeInTheDocument();
   });
 
   it("keeps the other items when one item's request fails", async () => {
@@ -638,30 +643,71 @@ describe("CookbookCard — Double-checking citations", () => {
     }
     expect(screen.queryByTestId(`answer-${doomed.id}`)).not.toBeInTheDocument();
     expect(screen.getAllByTestId(/^answer-/)).toHaveLength(spec.items.length - 1);
+
+    // The failed citation's request was sent — it is the reply that never came.
+    // The line exists to show what the pre-check saved, so leaving the failure
+    // out would credit the pre-check with a saving it did not make.
+    const sent = spec.items.length - preChecked.length;
+    expect(
+      await screen.findByText(new RegExp(`${sent} model requests?\\b`))
+    ).toBeInTheDocument();
   });
 
   it("does not ask the model for an item its pre-check already decided", async () => {
-    expect(preChecked).toHaveLength(1);
-    const skipped = preChecked[0];
+    expect(preChecked.length).toBeGreaterThan(0);
 
     const engine = new FakeEngine();
     const decideSpy = vi.spyOn(engine, "decide");
     render(<CookbookCard id={CITATIONS} engine={engine} />);
     await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
-    const row = await screen.findByTestId(`answer-${skipped.id}`);
 
-    // Not "the row looks different": the engine was never handed this
-    // citation's state at all, under any phrasing of it.
+    // Not "the row looks different": the engine was never handed these
+    // citations' states at all, under any phrasing of them.
     const asked = decideSpy.mock.calls.map(([state]) => state);
-    expect(asked).toHaveLength(spec.items.length - 1);
-    expect(asked).not.toContain(spec.toState(skipped));
-    for (const state of asked) {
-      expect(state).not.toContain(skipped.fields.claim);
+    expect(asked).toHaveLength(spec.items.length - preChecked.length);
+    for (const skipped of preChecked) {
+      expect(asked).not.toContain(spec.toState(skipped));
+      for (const state of asked) {
+        expect(state).not.toContain(skipped.fields.claim);
+      }
+      // It was decided all the same, by the cookbook's own check.
+      const row = await screen.findByTestId(`answer-${skipped.id}`);
+      expect(row).toHaveAttribute("data-disposition", "auto");
+      expect(row).toHaveTextContent(/fabricated/);
+    }
+  });
+
+  /** The bar is the one thing on a row that is a quantity, and a pre-check has
+   *  none: it decided by string search, and the model was never asked. A row
+   *  that draws one anyway reads as full confidence under a control headed
+   *  "Confidence floor", with the region below the floor shaded behind it.
+   *
+   *  Asserted on what is on screen, never on the entry's `value`: a `value: 1`
+   *  passes every assertion about `value` there is, which is exactly how a
+   *  full-width bar for a confidence nobody measured reached a browser through
+   *  a green suite. */
+  it("draws no confidence bar on a row nothing was measured for, and still says what it decided", async () => {
+    expect(preChecked.length).toBeGreaterThan(0);
+    render(<CookbookCard id={CITATIONS} engine={new FakeEngine()} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+    // Every row has landed before any of this is counted.
+    for (const item of spec.items) await screen.findByTestId(`answer-${item.id}`);
+
+    for (const skipped of preChecked) {
+      const row = screen.getByTestId(`answer-${skipped.id}`);
+      expect(within(row).queryByRole("meter")).not.toBeInTheDocument();
+      // The outcome and the reason for it stay: only the bar goes.
+      expect(row).toHaveTextContent(/fabricated/);
+      expect(row).toHaveTextContent(/quote not in the section/);
     }
 
-    // It was decided all the same, by the cookbook's own check.
-    expect(row).toHaveAttribute("data-disposition", "auto");
-    expect(row).toHaveTextContent(/fabricated/);
+    // And the rows the model did answer still have theirs, so this is the
+    // absence of a bar on the pre-checked rows and not on every row.
+    for (const item of spec.items) {
+      if (preChecked.includes(item)) continue;
+      const row = screen.getByTestId(`answer-${item.id}`);
+      expect(within(row).getByRole("meter")).toBeInTheDocument();
+    }
   });
 
   it("re-routes every item when a control moves, without asking again", async () => {

@@ -29,7 +29,7 @@ describe("citationCheck", () => {
     }
   });
 
-  it("covers all three relations plus the pre-check case, over at least four citations", () => {
+  it("grounds every citation's quote in its section, bar the ones the pre-check catches", () => {
     const items = citationCheck.items!;
     expect(items.items.length).toBeGreaterThanOrEqual(4);
 
@@ -46,36 +46,66 @@ describe("citationCheck", () => {
     }
   });
 
-  it("fires the pre-check only on the citation whose quote is not in its section", () => {
+  it("fires the pre-check on exactly the citations whose quote is not in their section", () => {
     const items = citationCheck.items!;
     const labelFor = items.labelFor;
     const fired = items.items
-      .map((item) => ({ id: item.id, routed: items.preCheck?.(item, labelFor) ?? null }))
-      .filter((entry) => entry.routed !== null);
+      .filter((item) => items.preCheck?.(item, labelFor))
+      .map((item) => item.id);
+    // Derived from the property the pre-check is for, not from today's ids: a
+    // sixth fabricated citation should extend this set, not fail this test.
+    const ungrounded = items.items
+      .filter(
+        (item) =>
+          item.fields.quote.length > 0 && !item.fields.section.includes(item.fields.quote)
+      )
+      .map((item) => item.id);
 
-    expect(fired).toHaveLength(1);
-    expect(fired[0]!.id).toBe("log-retention");
-    expect(fired[0]!.routed).toMatchObject({ outcome: "fabricated", disposition: "auto", value: 1 });
+    expect(ungrounded.length).toBeGreaterThan(0);
+    expect(fired).toEqual(ungrounded);
   });
 
-  it("does not fire the pre-check on citations whose quote is grounded in the section", () => {
+  it("says what it decided and why, carrying no quantity it never measured", () => {
     const items = citationCheck.items!;
     const labelFor = items.labelFor;
+    let checked = 0;
+
     for (const item of items.items) {
-      if (item.id === "log-retention") continue;
-      expect(items.preCheck?.(item, labelFor) ?? null).toBeNull();
+      const routed = items.preCheck?.(item, labelFor) ?? null;
+      if (!routed) continue;
+      checked += 1;
+      expect(routed).toMatchObject({ outcome: "fabricated", disposition: "auto" });
+      // The row draws its bar from `value`, and a string search measured
+      // nothing — so there is no value here. `CookbookCard.test.tsx` asserts
+      // the consequence a visitor sees: no bar on that row.
+      expect(routed.value).toBeUndefined();
+      // A phrase, not a sentence: the row renders it inside brackets after the
+      // outcome, where a full stop reads as a mistake.
+      expect(routed.detail).toBeTruthy();
+      expect(routed.detail).not.toMatch(/\.$/);
     }
+
+    expect(checked).toBeGreaterThan(0);
   });
 
   it("requires kev-0.6b, where the mechanic is visible", () => {
     expect(citationCheck.requires.model).toBe("kev-0.6b");
   });
 
-  it("has a why with no percentages or other measurement figures in it", () => {
-    // The measurement itself belongs in a comment above `requires`, not in
-    // the string a visitor reads.
-    expect(citationCheck.requires.why).not.toMatch(/%/);
-    expect(citationCheck.requires.why).not.toMatch(/\b\d+\s*(ms|s)\b/);
+  it("keeps percentages and durations out of the why, whatever unit they are written in", () => {
+    // Measurements belong in the comment above `requires`, where they can say
+    // which runtime produced them. This string cannot: it is read in a browser
+    // on WebGPU, and every figure in that comment was taken on CPU in Node.
+    //
+    // The name of this test used to say "no measurement figures", which the
+    // string has never satisfied — it names the cookbook's own 0.8 floor, and
+    // rightly: a published threshold is not a measurement. The two patterns
+    // below are what it actually guards, and the second now matches the spelled
+    // units ("0.2 seconds") that the old `\b\d+\s*(ms|s)\b` let through both
+    // because of the word boundary and because it saw no decimal point.
+    const why = citationCheck.requires.why;
+    expect(why).not.toMatch(/%/);
+    expect(why).not.toMatch(/\d+(\.\d+)?\s*(ms|s|secs?|seconds?|milliseconds?|minutes?)\b/i);
   });
 
   it("labels the one question it asks, and nothing else", () => {

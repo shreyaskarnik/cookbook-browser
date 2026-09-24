@@ -5,7 +5,10 @@ import { clampBand } from "../lib/routing";
 /** What happens to one question's answer: decided by the machine, or sent to a person. */
 export type Disposition = "auto" | "review";
 
-export type RoutedItem = {
+/** Everything a routed row says in words: which row it is, where it goes, and
+ *  what happened. The two row types below share all of it and differ only in
+ *  whether there is a measured quantity behind the words. */
+type RoutedRowText = {
   key: string;
   /** The human label from the cookbook's `labels`, never the raw question key. */
   label: string;
@@ -17,12 +20,38 @@ export type RoutedItem = {
    *  two-valued disposition cannot carry that, so before this field every
    *  rule wrote its word into `detail` and the pane could not act on it. */
   outcome: string;
-  /** The number or option only, e.g. "95%" or "Remove (40%)". */
+  /** A few words beside the outcome, which the row renders in brackets after
+   *  it: the number the rule thresholded on ("95%"), or the short reason a
+   *  pre-check decided as it did ("quote not in section"). The outcome word
+   *  itself lives in `outcome` — before that field existed, rules wrote their
+   *  word in here too, which is what this comment used to describe. Empty when
+   *  there is nothing to add: guardrails' severity row is its level and no
+   *  number. Kept to a few words because it renders parenthesised in a column
+   *  no wider than 12rem, where a whole sentence reads as an aside in brackets
+   *  and wraps over several lines. */
   detail: string;
+};
+
+/** A row for something nobody measured. A pre-check (`ItemsSpec.preCheck`)
+ *  decides by string search — a quote either occurs in its section or it does
+ *  not — so there is no 0..1 quantity behind its verdict, and a row with no
+ *  quantity draws no bar.
+ *
+ *  `value?: never` is the entire point of this type. A pre-check that writes
+ *  `value: 1` so its row looks as complete as the others does not compile,
+ *  rather than rendering a full-width bar under a "Confidence floor" control
+ *  for a confidence that was never asked for. Every cookbook of this shape
+ *  still to come gets that for free. */
+export type UnmeasuredItem = RoutedRowText & { value?: never };
+
+/** A row a rule produced by comparing something against a threshold. */
+export type RoutedItem = RoutedRowText & {
   /** The 0..1 quantity this rule thresholded on, so the card can draw a bar.
    *  For a noul that is its probability; for a choice, the winning option's
-   *  confidence; for a score, its normalized position. Every rule has one,
-   *  because every rule compares something against a threshold. */
+   *  confidence; for a score, its normalized position. Every RULE has one,
+   *  because every rule compares something against a threshold — which is why
+   *  it is required here and forbidden on `UnmeasuredItem` above, rather than
+   *  being one optional field that both kinds of row may or may not fill. */
   value: number;
 };
 

@@ -1,6 +1,7 @@
 import { choice } from "open-jev";
 import type { CookbookItem, ItemsSpec } from "./items";
 import { citationRule } from "./items";
+import type { UnmeasuredItem } from "./routing";
 import type { CookbookDefinition } from "./types";
 
 /** The cookbook's own floor: a verdict below this confidence goes to a
@@ -34,17 +35,25 @@ function labelFor(item: CookbookItem): string {
 
 /** A citation whose quote does not occur in its own section did not need a
  *  model call to catch — it is a string search, not a judgment. Checked
- *  before every model call so it never spends one. */
-function preCheck(item: CookbookItem, labelForItem: (item: CookbookItem) => string) {
+ *  before every model call so it never spends one.
+ *
+ *  Returns an `UnmeasuredItem`: there is no confidence behind a string search,
+ *  so the row this builds draws no bar. `detail` is a phrase rather than the
+ *  sentence it once was, because the row renders it in brackets after the
+ *  outcome — "fabricated (quote not in the section)" reads as an aside, where
+ *  a full sentence inside brackets does not. */
+function preCheck(
+  item: CookbookItem,
+  labelForItem: (item: CookbookItem) => string
+): UnmeasuredItem | null {
   const quote = item.fields.quote;
   if (quote.length > 0 && !item.fields.section.includes(quote)) {
     return {
       key: item.id,
       label: labelForItem(item),
-      disposition: "auto" as const,
+      disposition: "auto",
       outcome: "fabricated",
-      detail: "This quote does not appear in the section.",
-      value: 1,
+      detail: "quote not in the section",
     };
   }
   return null;
@@ -195,9 +204,16 @@ for (const citation of citations) {
   // Per item: 128–204 ms at 0.6B, 974–1027 ms at 4B. The floor has a case to
   // catch at both sizes, so this is about how long a list takes to work
   // through, not about which size produces which verdict.
+  //
+  // Every figure in the table above is CPU, q4, in Node, via
+  // `pnpm smoke:citations` — NOT the runtime a visitor gets, which is WebGPU
+  // and q4f16 in a browser. The one in-browser measurement in the record is 425
+  // ms across 4 model requests at 0.6B; there is no in-browser 4B figure at
+  // all. So no duration from here may be described to a visitor as what their
+  // browser will do, which is why `why` below states no timing.
   requires: {
     model: "kev-0.6b",
-    why: "Two of these citations land below the 0.8 auto-accept floor at kev-0.6b and go to a person, one does at kev-4b, and each citation is its own request — about a fifth of a second here against about a second on the larger model.",
+    why: "Two of these citations land below the 0.8 auto-accept floor at kev-0.6b and go to a person, and one does at kev-4b. Each citation is its own request, so the list is worked through one at a time.",
   },
   items: ITEMS,
 };

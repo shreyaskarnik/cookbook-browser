@@ -1,6 +1,12 @@
 import type { Answer } from "../engine/types";
 import { formatPercent } from "../lib/format";
-import { clampTo, PROBABILITY, type RoutedItem, type RuleControls } from "./routing";
+import {
+  clampTo,
+  PROBABILITY,
+  type RoutedItem,
+  type RuleControls,
+  type UnmeasuredItem,
+} from "./routing";
 
 /** One entry in a per-item cookbook's list — a citation, a ticket, a review —
  *  identified by `id` and rendered from its editable `fields`. */
@@ -35,13 +41,18 @@ export type ItemsSpec = {
   /** The row label for one item — a per-item rule cannot use the
    *  cookbook's static `labels`, which is keyed by question. */
   labelFor: (item: CookbookItem) => string;
-  /** A check that needs no model call. Returning a RoutedItem short-
-   *  circuits: the item is not sent. Takes `labelFor` for the same reason
-   *  the rule does — it builds a row, and a row carries a label. */
+  /** A check that needs no model call. Returning a row short-circuits: the
+   *  item is not sent. Takes `labelFor` for the same reason the rule does — it
+   *  builds a row, and a row carries a label.
+   *
+   *  The row is an `UnmeasuredItem`, not a `RoutedItem`: a pre-check decides by
+   *  looking at the item, so there is no confidence behind its verdict and its
+   *  row must not draw a bar. The type is what enforces that — see
+   *  `UnmeasuredItem` — rather than each cookbook's author remembering. */
   preCheck?: (
     item: CookbookItem,
     labelFor: (item: CookbookItem) => string
-  ) => RoutedItem | null;
+  ) => UnmeasuredItem | null;
   items: CookbookItem[];
   rule: ItemRoutingRule;
 };

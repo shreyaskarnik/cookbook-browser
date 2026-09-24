@@ -34,10 +34,13 @@ export type Sample = {
  *  A definition carries either `routing` and `samples` (a single-state
  *  cookbook) or `items` (a per-item one) — never neither, and a per-item
  *  cookbook has no use for a whole-state `routing` or a flat `samples` list.
- *  Nothing in this type enforces that split yet; the card is what
- *  discriminates, and giving it that job is the next task's problem, not
- *  this type's. `code` stays required either way: every cookbook has a code
- *  sample a reader can copy, regardless of its shape. */
+ *  This type does not enforce that split — a discriminated union would ripple
+ *  through every `getDefinition` consumer for a payoff the card gets
+ *  structurally — so it is enforced over every registered cookbook by the
+ *  "declares exactly one shape" guard in `catalog.test.ts`. The card still
+ *  throws on a shapeless definition as a backstop, but that throw is now
+ *  unreachable for anything registered. `code` stays required either way:
+ *  every cookbook has a code sample a reader can copy, whatever its shape. */
 export type CookbookDefinition = {
   /** Matches a CookbookEntry.id. */
   id: string;

@@ -1,5 +1,5 @@
 import type { CookbookItem, ItemsSpec } from "../../cookbooks/items";
-import type { RoutedItem } from "../../cookbooks/routing";
+import type { RoutedItem, UnmeasuredItem } from "../../cookbooks/routing";
 import RoutedRow from "./RoutedRow";
 
 /** What one item has to show above its fields, once a run has produced
@@ -7,12 +7,12 @@ import RoutedRow from "./RoutedRow";
  *  refused, has a message instead of a row — and only that item does: the rest
  *  of the list keeps its verdicts. */
 export type ItemRow =
-  | { kind: "routed"; routed: RoutedItem }
+  | { kind: "routed"; routed: RoutedItem | UnmeasuredItem }
   | { kind: "error"; message: string };
 
 /** Wider than `AnswersPane`'s columns on both ends. The label here is a
- *  truncated claim rather than a two-word question label, and the detail can be
- *  a sentence the pre-check wrote rather than a percentage. */
+ *  truncated claim rather than a two-word question label, and the detail is a
+ *  short phrase from the cookbook's pre-check as often as it is a percentage. */
 const ITEM_COLUMNS = "grid-cols-[1fr_6rem_12rem]";
 
 /**

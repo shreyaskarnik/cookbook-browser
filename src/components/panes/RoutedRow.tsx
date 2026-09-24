@@ -1,4 +1,4 @@
-import type { RoutedItem } from "../../cookbooks/routing";
+import type { RoutedItem, UnmeasuredItem } from "../../cookbooks/routing";
 
 const DISPOSITION_STYLE: Record<RoutedItem["disposition"], string> = {
   auto: "bg-auto",
@@ -9,7 +9,7 @@ const DISPOSITION_STYLE: Record<RoutedItem["disposition"], string> = {
  *  bar, and the outcome beside it. A per-item list needs different ones — its
  *  label is a whole claim and its detail can be a sentence — so the widths are
  *  a parameter while everything else about the row stays shared. */
-export const ANSWER_COLUMNS = "grid-cols-[11rem_1fr_7rem]";
+const ANSWER_COLUMNS = "grid-cols-[11rem_1fr_7rem]";
 
 /**
  * What a row whose disposition is "review" says, in words, about where it goes.
@@ -44,7 +44,7 @@ export default function RoutedRow({
   band,
   columns = ANSWER_COLUMNS,
 }: {
-  entry: RoutedItem;
+  entry: RoutedItem | UnmeasuredItem;
   /** Only a rule whose review region is one contiguous range of the same
    *  quantity every row is measured on has one; others pass nothing and get no
    *  overlay. */
@@ -59,24 +59,46 @@ export default function RoutedRow({
       className={`grid ${columns} items-center gap-3 text-sm`}
     >
       <span className="font-medium">{entry.label}</span>
-      <span className="relative h-2 rounded-full bg-line">
-        {/* The band, drawn behind the bar, so a row's position relative to
-            it is visible without reading the numbers. Only band-routed
-            cookbooks have one. */}
-        {band && (
-          <span
-            className="absolute inset-y-0 rounded-full bg-review/20"
-            style={{
-              left: `${band.low * 100}%`,
-              width: `${(band.high - band.low) * 100}%`,
-            }}
-          />
-        )}
+      {/* No quantity, no bar — and no empty track and no shaded band either,
+          since both of those still say "this row was measured, and here is
+          where it fell". An `UnmeasuredItem` came from a pre-check, which
+          decided by string search; the column is simply empty for it, and the
+          outcome and its reason carry the row on their own.
+
+          A measured row's bar is a `meter` rather than a bare div: it is the
+          only rendering of `value` a visitor gets, and a graphic nothing can
+          find is a graphic a test can only check by reading `value` back out
+          of the component — which is how a bar for a confidence nobody
+          measured survived a green suite. */}
+      {entry.value === undefined ? (
+        <span />
+      ) : (
         <span
-          className={`absolute inset-y-0 left-0 rounded-full ${DISPOSITION_STYLE[entry.disposition]}`}
-          style={{ width: `${entry.value * 100}%` }}
-        />
-      </span>
+          role="meter"
+          aria-label={entry.label}
+          aria-valuemin={0}
+          aria-valuemax={1}
+          aria-valuenow={entry.value}
+          className="relative block h-2 rounded-full bg-line"
+        >
+          {/* The band, drawn behind the bar, so a row's position relative to
+              it is visible without reading the numbers. Only band-routed
+              cookbooks have one. */}
+          {band && (
+            <span
+              className="absolute inset-y-0 rounded-full bg-review/20"
+              style={{
+                left: `${band.low * 100}%`,
+                width: `${(band.high - band.low) * 100}%`,
+              }}
+            />
+          )}
+          <span
+            className={`absolute inset-y-0 left-0 rounded-full ${DISPOSITION_STYLE[entry.disposition]}`}
+            style={{ width: `${entry.value * 100}%` }}
+          />
+        </span>
+      )}
       <div>
         <span
           className={entry.disposition === "review" ? "text-review font-medium" : "text-stone"}

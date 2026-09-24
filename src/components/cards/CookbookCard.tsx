@@ -2,7 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { docsUrl, getDefinition, getEntry } from "../../cookbooks";
 import type { CookbookDefinition, Sample } from "../../cookbooks";
 import type { CookbookItem, ItemsSpec } from "../../cookbooks/items";
-import type { RoutedItem, RoutingRule, RuleParameter } from "../../cookbooks/routing";
+import type {
+  RoutedItem,
+  RoutingRule,
+  RuleParameter,
+  UnmeasuredItem,
+} from "../../cookbooks/routing";
 import type { Answer, Engine, EngineRuntime } from "../../engine";
 import { describeError } from "../../engine";
 import { formatDuration, formatPercent } from "../../lib/format";
@@ -465,12 +470,14 @@ function StateCard({
  *    single-state card makes, made once per item.
  *  - `precheck` never reached the engine, so there are no answers to keep and
  *    no rule to re-run: the cookbook's own check already produced the row, and
- *    moving a control cannot change it.
+ *    moving a control cannot change it. Its row is an `UnmeasuredItem` — there
+ *    is no confidence behind a string search, so the row draws no bar and the
+ *    floor below it is not a threshold it was ever compared against.
  *  - `failed` carries the message alone. One item failing is one row's problem;
  *    the rest of the list keeps its results. */
 type ItemOutcome =
   | { id: string; kind: "answered"; answers: Record<string, Answer> }
-  | { id: string; kind: "precheck"; routed: RoutedItem }
+  | { id: string; kind: "precheck"; routed: UnmeasuredItem }
   | { id: string; kind: "failed"; message: string };
 
 /** One finished pass over the whole list. `forItems` is a signature of the list
@@ -647,8 +654,12 @@ function ItemsCard({
 
   // How many of the items actually cost a request. The pre-check answers one of
   // this cookbook's citations without one, and that difference is the thing
-  // worth printing beside the duration.
-  const requests = outcomes.filter((outcome) => outcome.kind === "answered").length;
+  // worth printing beside the duration. A failed item counts: its request was
+  // sent, and leaving it out would overstate exactly the saving this line
+  // exists to show.
+  const requests = outcomes.filter(
+    (outcome) => outcome.kind === "answered" || outcome.kind === "failed"
+  ).length;
   const noun = spec.noun.toLowerCase();
 
   return (

@@ -116,6 +116,25 @@ describe("every built definition", () => {
     expect(orphaned).toEqual([]);
   });
 
+  /** A definition carries `routing` + `samples` (a single state) or `items` (a
+   *  list), and the card discriminates on exactly that. Neither shape reaches a
+   *  `throw` during render, and — with no error boundary above it — that throw
+   *  takes the whole app down, including the loaded model. Both shapes at once
+   *  is worse for being silent: `items` wins and the other two are ignored with
+   *  no signal. Asserted here rather than in the type, which cannot express it
+   *  without a discriminated union rippling through every `getDefinition`
+   *  consumer, and here it covers the fifteen cards still to come the day each
+   *  one registers. */
+  it.each(BUILT_IDS)("declares exactly one shape: %s", (id) => {
+    const definition = getDefinition(id);
+    const declared = [
+      definition.items && "items",
+      definition.routing && "routing",
+      definition.samples && "samples",
+    ].filter(Boolean);
+    expect(declared).toEqual(definition.items ? ["items"] : ["routing", "samples"]);
+  });
+
   it.each(BUILT_IDS)("offers at least one sample to run: %s", (id) => {
     // A single-state cookbook offers `samples`; a per-item one offers
     // `items.items` instead — either is something to run.

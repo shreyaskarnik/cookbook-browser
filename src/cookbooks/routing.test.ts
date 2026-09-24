@@ -39,11 +39,6 @@ describe("bandRule", () => {
     expect(low.outcome).toBe("No");
     expect(low.detail).toBe("5%");
   });
-  it("gives every routed row a word of its own, not only a disposition", () => {
-    const routed = route({ covered: noul(0.95) }, { covered: "Covered" });
-    expect(routed[0].outcome).toBe("Yes");
-    expect(routed[0].detail).toBe("95%");
-  });
   it("treats both bounds as inside the band, matching the cookbook", () => {
     expect(route({ q: noul(0.3) }, { q: "Q" })[0].disposition).toBe("review");
     expect(route({ q: noul(0.7) }, { q: "Q" })[0].disposition).toBe("review");

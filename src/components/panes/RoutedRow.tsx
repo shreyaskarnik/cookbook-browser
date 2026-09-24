@@ -6,10 +6,29 @@ const DISPOSITION_STYLE: Record<RoutedItem["disposition"], string> = {
 };
 
 /** The column widths `AnswersPane` has always used: a short question label, the
- *  bar, and a number beside it. A per-item list needs different ones — its
+ *  bar, and the outcome beside it. A per-item list needs different ones — its
  *  label is a whole claim and its detail can be a sentence — so the widths are
  *  a parameter while everything else about the row stays shared. */
-export const ANSWER_COLUMNS = "grid-cols-[11rem_1fr_5rem]";
+export const ANSWER_COLUMNS = "grid-cols-[11rem_1fr_7rem]";
+
+/**
+ * What a row whose disposition is "review" says, in words, about where it goes.
+ *
+ * Every rule already colours such a row differently, and two of the four also
+ * happen to word their `outcome` as "Review" — but two do not: a confidence
+ * floor's outcome is the chosen option ("Remove"), and the citation rule's is a
+ * verdict ("verified"). On those, a row above the floor and the same row below
+ * it read character for character the same, and the one thing the cookbook
+ * exists to show is carried by colour alone.
+ *
+ * So the row says it, from the disposition itself, for every rule. Not by
+ * checking whether `outcome` already reads "Review" — that breaks the day a rule
+ * says "Escalate" — and not by asking each rule to supply the wording, which
+ * would put the same judgment in four places and let a new rule forget it. The
+ * cost is that "Review" and this marker appear together on two cards. That mild
+ * redundancy is the price of a guarantee no rule can opt out of.
+ */
+const REVIEW_MARKER = "To a person";
 
 /**
  * One routed row, wherever it is shown. Both panes speak the same `RoutedItem`
@@ -58,13 +77,20 @@ export default function RoutedRow({
           style={{ width: `${entry.value * 100}%` }}
         />
       </span>
-      <span
-        className={entry.disposition === "review" ? "text-review font-medium" : "text-stone"}
-      >
-        {/* Outcome first, then the number or option that backs it — a
-            severity row has no detail, so it renders on its own. */}
-        {entry.detail ? `${entry.outcome} (${entry.detail})` : entry.outcome}
-      </span>
+      <div>
+        <span
+          className={entry.disposition === "review" ? "text-review font-medium" : "text-stone"}
+        >
+          {/* Outcome first, then the number or option that backs it — a
+              severity row has no detail, so it renders on its own. Kept as its
+              own element, so the marker below is a sibling rather than part of
+              this string. */}
+          {entry.detail ? `${entry.outcome} (${entry.detail})` : entry.outcome}
+        </span>
+        {entry.disposition === "review" && (
+          <span className="block text-xs font-normal text-review">{REVIEW_MARKER}</span>
+        )}
+      </div>
     </div>
   );
 }

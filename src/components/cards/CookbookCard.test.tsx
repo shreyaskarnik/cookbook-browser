@@ -744,3 +744,74 @@ describe("CookbookCard — Double-checking citations", () => {
     );
   });
 });
+
+/** Every card draws its rows with the same `RoutedRow`, so what a row says about
+ *  where it goes is one fact with one home. These assert on rendered TEXT, never
+ *  on `data-disposition`: an attribute assertion passes happily through a row
+ *  that distinguishes review from auto by colour alone, which is exactly how
+ *  that defect survived a green suite and reached a browser. */
+describe("A routed row that goes to a person", () => {
+  /** The rendered text of every row on screen, in row order. */
+  const rowText = () => screen.getAllByTestId(/^answer-/).map((row) => row.textContent);
+
+  it("reads differently from the same row decided automatically, on the citations card", async () => {
+    render(<CookbookCard id={CITATIONS} engine={new FakeEngine()} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+    // A citation the model actually answered: the pre-checked one is not the
+    // floor's to move, so it would read the same at either end by design.
+    const answered = spec.items.find((item) => !preChecked.includes(item))!;
+    await screen.findByTestId(`answer-${answered.id}`);
+    const floor = screen.getByRole("slider", { name: /floor/i });
+
+    fireEvent.change(floor, { target: { value: "0" } });
+    const automatic = screen.getByTestId(`answer-${answered.id}`).textContent;
+
+    fireEvent.change(floor, { target: { value: "1" } });
+    const toPerson = screen.getByTestId(`answer-${answered.id}`).textContent;
+
+    // Same citation, same answer, only the floor moved. Dragging it must change
+    // what the row SAYS, not only what colour it is.
+    expect(toPerson).not.toBe(automatic);
+    expect(toPerson).toMatch(/to a person/i);
+    expect(automatic).not.toMatch(/to a person/i);
+  });
+
+  it("reads differently on a cookbook whose own outcome word never says it", async () => {
+    // consistency-choice's outcome is the chosen option — "Remove" — so nothing
+    // in this rule's own vocabulary distinguishes a row that goes to a person.
+    // The band and guardrails rules only escape by happening to word their
+    // outcome "Review", which is luck, not a guarantee.
+    render(<CookbookCard id="consistency-choice" engine={new FakeEngine()} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+    await screen.findAllByTestId(/^answer-/);
+    const floor = screen.getByRole("slider", { name: /floor/i });
+
+    fireEvent.change(floor, { target: { value: "0" } });
+    const automatic = rowText();
+
+    fireEvent.change(floor, { target: { value: "1" } });
+    const toPerson = rowText();
+
+    expect(toPerson).toHaveLength(automatic.length);
+    expect(automatic.length).toBeGreaterThan(0);
+    for (let index = 0; index < toPerson.length; index += 1) {
+      expect(toPerson[index]).not.toBe(automatic[index]);
+      expect(toPerson[index]).toMatch(/to a person/i);
+      expect(automatic[index]).not.toMatch(/to a person/i);
+    }
+  });
+
+  it("still says it where the rule's outcome word already does, rather than leaving that card to luck", async () => {
+    // The band rule words its outcome "Review", so this row was never the
+    // defect — but the marker is unconditional on the disposition, so this card
+    // does not depend on that wording staying what it is.
+    render(<CookbookCard id={NOUL} engine={pinned} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+    const escalated = await screen.findByTestId("answer-exclusionApplies");
+    const automatic = screen.getByTestId("answer-covered");
+
+    expect(escalated).toHaveTextContent(/to a person/i);
+    expect(automatic).not.toHaveTextContent(/to a person/i);
+    expect(escalated.textContent).not.toBe(automatic.textContent);
+  });
+});

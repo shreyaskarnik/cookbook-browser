@@ -1,5 +1,3 @@
-import type { NoulAnswer } from "../engine/types";
-
 /** An uncertainty band. Probabilities inside it, bounds included, go to a human. */
 export type Band = { low: number; high: number };
 
@@ -37,19 +35,6 @@ export type RoutedQuestion = {
   probability: number;
   verdict: Verdict;
 };
-
-/** Insertion order is preserved: the card renders this list directly, and
- *  re-sorting it as the slider moves would make rows jump under the cursor. */
-export function routeAll(
-  answers: Record<string, NoulAnswer>,
-  band: Band
-): RoutedQuestion[] {
-  return Object.entries(answers).map(([key, answer]) => ({
-    key,
-    probability: answer.probability,
-    verdict: classify(answer.probability, band),
-  }));
-}
 
 export function bandSummary(routed: RoutedQuestion[]): {
   yes: number;

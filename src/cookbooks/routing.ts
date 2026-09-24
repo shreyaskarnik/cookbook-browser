@@ -9,8 +9,15 @@ export type RoutedItem = {
   key: string;
   /** The human label from the cookbook's `labels`, never the raw question key. */
   label: string;
+  /** Who acts on this row: the machine, or a person. Two values, because
+   *  that is genuinely binary and it is what the row's colour means. */
   disposition: Disposition;
-  /** One short phrase a visitor can read, e.g. "89%" or "Escalate (41%)". */
+  /** The rule's own word for what happened — "Yes", "Review", "Block",
+   *  "verified". Rules disagree about how many outcomes they have, and a
+   *  two-valued disposition cannot carry that, so before this field every
+   *  rule wrote its word into `detail` and the pane could not act on it. */
+  outcome: string;
+  /** The number or option only, e.g. "95%" or "Remove (40%)". */
   detail: string;
   /** The 0..1 quantity this rule thresholded on, so the card can draw a bar.
    *  For a noul that is its probability; for a choice, the winning option's
@@ -110,7 +117,8 @@ export function bandRule(low: number, high: number): RoutingRule {
         key,
         label: resolveLabel(key, labels),
         disposition: inside ? "review" : "auto",
-        detail: `${word} (${formatPercent(answer.probability)})`,
+        outcome: word,
+        detail: formatPercent(answer.probability),
         value: answer.probability,
       };
     });
@@ -181,7 +189,11 @@ export function hazardRule(
           key,
           label: resolveLabel(key, labels),
           disposition: "auto" as const,
-          detail: firstClause(answer.level),
+          // The truncated level is the outcome word itself here, not a detail
+          // alongside a number — a severity row has no separate percentage to
+          // show beside it.
+          outcome: firstClause(answer.level),
+          detail: "",
           value: answer.normalized,
         };
       }
@@ -190,7 +202,7 @@ export function hazardRule(
       }
       const p = answer.probability;
       if (p >= action) {
-        return { key, label: resolveLabel(key, labels), disposition: "auto" as const, detail: `${formatPercent(p)} — block`, value: p };
+        return { key, label: resolveLabel(key, labels), disposition: "auto" as const, outcome: "Block", detail: formatPercent(p), value: p };
       }
       if (p >= review) {
         // A severity-forced block is still a block: it must render the same
@@ -200,11 +212,12 @@ export function hazardRule(
           key,
           label: resolveLabel(key, labels),
           disposition: severe ? ("auto" as const) : ("review" as const),
-          detail: severe ? `${formatPercent(p)} — block (severity)` : `${formatPercent(p)} — review`,
+          outcome: severe ? "Block" : "Review",
+          detail: formatPercent(p),
           value: p,
         };
       }
-      return { key, label: resolveLabel(key, labels), disposition: "auto" as const, detail: formatPercent(p), value: p };
+      return { key, label: resolveLabel(key, labels), disposition: "auto" as const, outcome: "Clear", detail: formatPercent(p), value: p };
     });
   };
 
@@ -250,7 +263,8 @@ export function minimumConfidenceRule(floor: number): RoutingRule {
         key,
         label: resolveLabel(key, labels),
         disposition: answer.confidence >= floor ? "auto" : "review",
-        detail: `${answer.choice} (${formatPercent(answer.confidence)})`,
+        outcome: answer.choice,
+        detail: formatPercent(answer.confidence),
         value: answer.confidence,
       };
     });

@@ -65,7 +65,9 @@ export default function AnswersPane({
                 entry.disposition === "review" ? "text-review font-medium" : "text-stone"
               }
             >
-              {entry.detail}
+              {/* Outcome first, then the number or option that backs it — a
+                  severity row has no detail, so it renders on its own. */}
+              {entry.detail ? `${entry.outcome} (${entry.detail})` : entry.outcome}
             </span>
           </li>
         ))}

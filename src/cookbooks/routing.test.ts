@@ -24,17 +24,25 @@ describe("bandRule", () => {
     const [item] = route({ q: noul(0.5) }, { q: "Question" });
     expect(item.disposition).toBe("review");
     expect(item.value).toBe(0.5);
-    expect(item.detail).toBe("Review (50%)");
+    expect(item.outcome).toBe("Review");
+    expect(item.detail).toBe("50%");
   });
   it("decides a probability outside the band automatically", () => {
     const high = route({ q: noul(0.95) }, { q: "Q" })[0];
     const low = route({ q: noul(0.05) }, { q: "Q" })[0];
     expect(high.disposition).toBe("auto");
     expect(high.value).toBe(0.95);
-    expect(high.detail).toBe("Yes (95%)");
+    expect(high.outcome).toBe("Yes");
+    expect(high.detail).toBe("95%");
     expect(low.disposition).toBe("auto");
     expect(low.value).toBe(0.05);
-    expect(low.detail).toBe("No (5%)");
+    expect(low.outcome).toBe("No");
+    expect(low.detail).toBe("5%");
+  });
+  it("gives every routed row a word of its own, not only a disposition", () => {
+    const routed = route({ covered: noul(0.95) }, { covered: "Covered" });
+    expect(routed[0].outcome).toBe("Yes");
+    expect(routed[0].detail).toBe("95%");
   });
   it("treats both bounds as inside the band, matching the cookbook", () => {
     expect(route({ q: noul(0.3) }, { q: "Q" })[0].disposition).toBe("review");
@@ -64,8 +72,8 @@ describe("minimumConfidenceRule", () => {
   it("treats the floor itself as acceptable", () => {
     expect(route({ q: choice("Remove", 0.6) }, { q: "Action" })[0].disposition).toBe("auto");
   });
-  it("names the winning option in the detail, so a visitor sees what was chosen", () => {
-    expect(route({ q: choice("Escalate", 0.9) }, { q: "Action" })[0].detail).toContain("Escalate");
+  it("names the winning option as the outcome, so a visitor sees what was chosen", () => {
+    expect(route({ q: choice("Escalate", 0.9) }, { q: "Action" })[0].outcome).toBe("Escalate");
   });
   it("throws naming the key when no label is provided, rather than emitting the raw key", () => {
     expect(() => route({ recommendedAction: choice("Escalate", 0.9) }, {})).toThrow(/recommendedAction/);
@@ -91,12 +99,19 @@ describe("hazardRule", () => {
 
   it("marks a hazard above the action threshold as actionable, not merely reviewable", () => {
     const items = route({ jailbreak: noul(0.9), severity: sev(0) }, { jailbreak: "Jailbreak", severity: "Severity" });
-    expect(items.find((i) => i.key === "jailbreak")!.detail).toMatch(/block|action/i);
+    expect(items.find((i) => i.key === "jailbreak")!.outcome).toBe("Block");
   });
 
   it("escalates every review to a block once severity reaches the override", () => {
     const items = route({ jailbreak: noul(0.4), severity: sev(2.5) }, { jailbreak: "Jailbreak", severity: "Severity" });
-    expect(items.find((i) => i.key === "jailbreak")!.detail).toMatch(/block/i);
+    expect(items.find((i) => i.key === "jailbreak")!.outcome).toBe("Block");
+  });
+
+  it("says 'Block' on a severity override, where the disposition alone says only 'auto'", () => {
+    const routed = route({ jailbreak: noul(0.41), severity: sev(2.22) }, { jailbreak: "Jailbreak", severity: "Severity" });
+    const row = routed.find((entry) => entry.key === "jailbreak")!;
+    expect(row.outcome).toBe("Block");
+    expect(row.disposition).toBe("auto");
   });
 
   it("does not route the severity score itself as a hazard", () => {
@@ -113,7 +128,8 @@ describe("hazardRule", () => {
     );
     const item = items.find((i) => i.key === "jailbreak")!;
     expect(item.disposition).toBe("auto");
-    expect(item.detail).toBe("69% — block (severity)");
+    expect(item.outcome).toBe("Block");
+    expect(item.detail).toBe("69%");
   });
 
   it("the same 69% stays under review when severity does not reach the override", () => {
@@ -123,10 +139,11 @@ describe("hazardRule", () => {
     );
     const item = items.find((i) => i.key === "jailbreak")!;
     expect(item.disposition).toBe("review");
-    expect(item.detail).toBe("69% — review");
+    expect(item.outcome).toBe("Review");
+    expect(item.detail).toBe("69%");
   });
 
-  it("takes the severity detail up to its first colon, since AnswersPane's column is narrow", () => {
+  it("takes the severity outcome up to its first colon, since AnswersPane's column is narrow", () => {
     const sentence: Answer = {
       type: "score",
       score: 2,
@@ -136,12 +153,16 @@ describe("hazardRule", () => {
       probabilities: { none: 0.1, mild: 0.2, serious: 0.4, severe: 0.3 },
     };
     const items = route({ jailbreak: noul(0.1), severity: sentence }, { jailbreak: "Jailbreak", severity: "Severity" });
-    expect(items.find((i) => i.key === "severity")!.detail).toBe("Serious");
+    const row = items.find((i) => i.key === "severity")!;
+    expect(row.outcome).toBe("Serious");
+    expect(row.detail).toBe("");
   });
 
   it("leaves a severity level with no colon unchanged, rather than emptying it", () => {
     const items = route({ jailbreak: noul(0.1), severity: sev(0) }, { jailbreak: "Jailbreak", severity: "Severity" });
-    expect(items.find((i) => i.key === "severity")!.detail).toBe("none");
+    const row = items.find((i) => i.key === "severity")!;
+    expect(row.outcome).toBe("none");
+    expect(row.detail).toBe("");
   });
 });
 

@@ -1,19 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { NoulAnswer } from "../engine/types";
-import {
-  DEFAULT_BAND,
-  bandSummary,
-  clampBand,
-  classify,
-  routeAll,
-} from "./routing";
-
-const answer = (probability: number): NoulAnswer => ({
-  type: "noul",
-  answer: probability >= 0.5,
-  probability,
-  confidence: Math.max(probability, 1 - probability),
-});
+import { DEFAULT_BAND, bandSummary, clampBand, classify } from "./routing";
+import type { RoutedQuestion } from "./routing";
 
 describe("classify", () => {
   it("calls a low probability no", () => {
@@ -81,41 +68,14 @@ describe("clampBand", () => {
   });
 });
 
-describe("routeAll", () => {
-  it("routes every answer and keeps the keys", () => {
-    const routed = routeAll(
-      { covered: answer(0.95), fraud: answer(0.5), excluded: answer(0.02) },
-      DEFAULT_BAND
-    );
-    expect(routed).toEqual([
-      { key: "covered", probability: 0.95, verdict: "yes" },
-      { key: "fraud", probability: 0.5, verdict: "uncertain" },
-      { key: "excluded", probability: 0.02, verdict: "no" },
-    ]);
-  });
-  it("preserves insertion order so the card does not reshuffle as the slider moves", () => {
-    const routed = routeAll(
-      { b: answer(0.1), a: answer(0.9), c: answer(0.5) },
-      DEFAULT_BAND
-    );
-    expect(routed.map((entry) => entry.key)).toEqual(["b", "a", "c"]);
-  });
-  it("returns nothing for no answers", () => {
-    expect(routeAll({}, DEFAULT_BAND)).toEqual([]);
-  });
-});
-
 describe("bandSummary", () => {
   it("counts each verdict and the automated share", () => {
-    const routed = routeAll(
-      {
-        a: answer(0.95),
-        b: answer(0.9),
-        c: answer(0.5),
-        d: answer(0.02),
-      },
-      DEFAULT_BAND
-    );
+    const routed: RoutedQuestion[] = [
+      { key: "a", probability: 0.95, verdict: "yes" },
+      { key: "b", probability: 0.9, verdict: "yes" },
+      { key: "c", probability: 0.5, verdict: "uncertain" },
+      { key: "d", probability: 0.02, verdict: "no" },
+    ];
     expect(bandSummary(routed)).toEqual({
       yes: 2,
       no: 1,

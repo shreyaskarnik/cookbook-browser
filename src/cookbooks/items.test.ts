@@ -33,3 +33,27 @@ describe("citationRule", () => {
     expect(() => citationRule(0.8)(wrong, item, labelFor)).toThrow(/relation/);
   });
 });
+
+describe("citationRule's controls", () => {
+  it("declares its one floor, and shades everything under it", () => {
+    const controls = citationRule(0.8).controls!;
+    expect(controls.parameters.map((p) => [p.name, p.value])).toEqual([["autoAccept", 0.8]]);
+    expect(controls.reviewBand).toEqual({ low: 0, high: 0.8 });
+  });
+
+  it("rebuilds at a new floor, flipping a review to auto with no new answers", () => {
+    const answers = relation("supports", 0.69);
+    const original = citationRule(0.8)(answers, item, labelFor);
+    expect(original.disposition).toBe("review");
+
+    const rebuilt = citationRule(0.8).controls!.rebuild({ autoAccept: 0.6 });
+    const routed = rebuilt(answers, item, labelFor);
+    expect(routed.disposition).toBe("auto");
+    expect(routed.outcome).toBe("verified");
+  });
+
+  it("falls back to the value the rule already had when handed a non-finite floor", () => {
+    const rebuilt = citationRule(0.8).controls!.rebuild({ autoAccept: NaN });
+    expect(rebuilt.controls!.parameters[0].value).toBe(0.8);
+  });
+});

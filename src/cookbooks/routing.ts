@@ -49,8 +49,14 @@ export type RuleParameter = {
 /** The knobs a rule exposes, and how to rebuild it as they move. Every field
  *  here describes the rule, not the card: two cookbooks with different
  *  thresholds get different headings, different copy and different controls
- *  without the card knowing anything about either. */
-export type RuleControls = {
+ *  without the card knowing anything about either.
+ *
+ *  Generic in the rule type `rebuild` returns: a whole-state `RoutingRule`
+ *  rebuilds into another `RoutingRule`, but a per-item `ItemRoutingRule`
+ *  (`./items`) rebuilds into another `ItemRoutingRule` — same shape of knob,
+ *  different callable underneath. `R` defaults to `RoutingRule` so existing
+ *  call sites naming `RuleControls` bare keep working. */
+export type RuleControls<R = RoutingRule> = {
   /** The section heading above the controls, e.g. "Uncertainty band". */
   title: string;
   /** One line under it, saying what moving these does. */
@@ -63,7 +69,7 @@ export type RuleControls = {
    * own `parameters` carry the resolved values back, so a card can show where
    * the controls actually ended up rather than where they were dragged to.
    */
-  rebuild(values: Record<string, number>): RoutingRule;
+  rebuild(values: Record<string, number>): R;
   /** A region of the 0..1 bar that goes to a person, for a card to shade behind
    *  the answer rows. Only a rule whose review region is one contiguous range of
    *  the same quantity every row is measured on has one. */
@@ -78,7 +84,7 @@ export interface RoutingRule {
   /** The thresholds this rule was built at, and how to rebuild it at others.
    *  Optional so a rule with nothing to adjust can simply omit it and render
    *  no controls. */
-  controls?: RuleControls;
+  controls?: RuleControls<RoutingRule>;
 }
 
 /** The human label for `key`, never the raw key itself. Throws rather than
@@ -96,7 +102,7 @@ function resolveLabel(key: string, labels: Record<string, string>): string {
 }
 
 /** Shared by every threshold that is a probability. */
-const PROBABILITY = { min: 0, max: 1, step: 0.01, format: "percent" } as const;
+export const PROBABILITY = { min: 0, max: 1, step: 0.01, format: "percent" } as const;
 
 /** Probabilities inside [low, high], bounds included, go to a person.
  *  Used by Self-consistency: nouls. */
@@ -156,7 +162,7 @@ function firstClause(label: string): string {
 /** Keep a threshold inside its declared range, replacing a non-finite value
  *  with the one the rule already had rather than letting NaN reach a
  *  comparison, where every test against it would silently be false. */
-function clampTo(value: number, fallback: number, min: number, max: number): number {
+export function clampTo(value: number, fallback: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return fallback;
   return Math.min(Math.max(value, min), max);
 }

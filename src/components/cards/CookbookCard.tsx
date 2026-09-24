@@ -74,9 +74,9 @@ export default function CookbookCard({
   const entry = getEntry(id);
   const Headline = getHeadline(id);
 
-  const [state, setState] = useState(definition.samples[0].text);
+  const [state, setState] = useState(definition.samples![0].text);
   const [tokenCount, setTokenCount] = useState<TokenCount>(() => ({
-    value: engine.countTokens(definition.samples[0].text),
+    value: engine.countTokens(definition.samples![0].text),
     exact: false,
   }));
   const [run, setRun] = useState<Run>({ kind: "idle" });
@@ -84,7 +84,7 @@ export default function CookbookCard({
   // `definition.routing` is the rule at the thresholds its cookbook publishes,
   // and it is also where those thresholds are declared. The card starts every
   // control at the rule's own default and never names a threshold itself.
-  const declared = definition.routing.controls ?? null;
+  const declared = definition.routing!.controls ?? null;
   const [values, setValues] = useState<Record<string, number>>(() =>
     declared ? valuesOf(declared.parameters) : {}
   );
@@ -112,7 +112,7 @@ export default function CookbookCard({
   // The rebuilt rule's own controls: the same knobs, carrying wherever the rule
   // settled them. Sliders read from here, not from `values`, so a constrained
   // parameter shows its resolved position rather than the raw drag.
-  const controls = rule.controls ?? null;
+  const controls = rule!.controls ?? null;
 
   // The per-row answers, in the shared `RoutedItem` vocabulary every cookbook's
   // pane speaks. A rule throws when an answer is not the type it needs, and
@@ -121,7 +121,11 @@ export default function CookbookCard({
   const routing = useMemo((): { items: RoutedItem[]; error: string | null } => {
     if (!answers) return { items: [], error: null };
     try {
-      return { items: rule(answers, definition.labels), error: null };
+      // Non-null because this card renders only single-state cookbooks today,
+      // which always carry a whole-state rule. A per-item definition has
+      // `items` and no `routing`, is registered but not advertised, and so
+      // cannot reach here yet — the next task adds the branch that runs it.
+      return { items: rule!(answers, definition.labels), error: null };
     } catch (caught) {
       return { items: [], error: describeError(caught) };
     }
@@ -344,7 +348,7 @@ export default function CookbookCard({
       </div>
 
       <SamplesRail
-        samples={definition.samples}
+        samples={definition.samples!}
         onPick={(sample) => {
           setState(sample.text);
           // One assignment clears answers, their timing, and any error

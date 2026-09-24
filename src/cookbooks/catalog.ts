@@ -104,7 +104,8 @@ export const CATALOG: readonly CookbookEntry[] = [
     title: "Double-checking citations",
     slug: "citation_check",
     category: "How-to",
-    description: "Verify that a quote's context supports the claim it is cited for.",
+    description:
+      "Route each citation by how its section relates to the claim, skip the model when a quote isn't in the section, and drag the floor to see which verdicts move to a person.",
     status: "planned",
   },
   {

@@ -29,10 +29,18 @@ describe("CATALOG", () => {
     ]);
   });
 
-  it("marks every cookbook that has a definition as built", () => {
+  /** One direction only, deliberately. A cookbook marked "built" without a
+   *  definition is a dead sidebar entry a visitor can click, which is the
+   *  thing worth asserting. The converse — every registered definition is
+   *  marked built — is NOT asserted, because a definition is registered in
+   *  the task that writes it and advertised in the task that makes it
+   *  render, and those are not the same task. Asserting the biconditional
+   *  would forbid that intermediate state and fail on work that is correct. */
+  it("never advertises a cookbook it has no definition for", () => {
     for (const entry of CATALOG) {
-      const hasDefinition = BUILT_IDS.includes(entry.id);
-      expect(entry.status).toBe(hasDefinition ? "built" : "planned");
+      if (entry.status === "built") {
+        expect(BUILT_IDS).toContain(entry.id);
+      }
     }
   });
 
@@ -75,8 +83,11 @@ describe("consistencyNoul", () => {
   });
 
   it("ships sample states to start from", () => {
-    expect(consistencyNoul.samples.length).toBeGreaterThanOrEqual(3);
-    for (const sample of consistencyNoul.samples) {
+    // A single-state cookbook always has samples; only a per-item one omits
+    // them in favour of `items`, and consistencyNoul is not one.
+    const samples = consistencyNoul.samples!;
+    expect(samples.length).toBeGreaterThanOrEqual(3);
+    for (const sample of samples) {
       expect(sample.text.length).toBeGreaterThan(80);
     }
   });
@@ -106,6 +117,10 @@ describe("every built definition", () => {
   });
 
   it.each(BUILT_IDS)("offers at least one sample to run: %s", (id) => {
-    expect(getDefinition(id).samples.length).toBeGreaterThan(0);
+    // A single-state cookbook offers `samples`; a per-item one offers
+    // `items.items` instead — either is something to run.
+    const definition = getDefinition(id);
+    const count = definition.samples?.length ?? definition.items?.items.length ?? 0;
+    expect(count).toBeGreaterThan(0);
   });
 });

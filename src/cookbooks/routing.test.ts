@@ -254,15 +254,15 @@ describe("the thresholds each cookbook publishes", () => {
     Object.fromEntries(rule.controls!.parameters.map((p) => [p.name, p.value]));
 
   it("starts Self-consistency: nouls at the cookbook's 0.30 / 0.70 band", () => {
-    expect(valuesOf(consistencyNoul.routing)).toEqual({ low: 0.3, high: 0.7 });
+    expect(valuesOf(consistencyNoul.routing!)).toEqual({ low: 0.3, high: 0.7 });
   });
 
   it("starts Self-consistency: choices at the cookbook's 0.60 floor", () => {
-    expect(valuesOf(consistencyChoice.routing)).toEqual({ floor: 0.6 });
+    expect(valuesOf(consistencyChoice.routing!)).toEqual({ floor: 0.6 });
   });
 
   it("starts Guardrails for LLMs at the cookbook's 0.35 / 0.70 / 2.0", () => {
-    expect(valuesOf(guardrails.routing)).toEqual({
+    expect(valuesOf(guardrails.routing!)).toEqual({
       review: 0.35,
       action: 0.7,
       severityBlock: 2,

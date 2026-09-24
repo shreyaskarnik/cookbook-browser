@@ -426,7 +426,7 @@ describe("CookbookCard — the other cookbooks", () => {
     // is "the card reads the rule's defaults" — asserting the literals would
     // pin 0.3/0.7 in a fourth place and pass even if the card stopped reading
     // the rule and happened to hold the same two numbers.
-    const declared = getDefinition(NOUL).routing.controls!.parameters;
+    const declared = getDefinition(NOUL).routing!.controls!.parameters;
     expect(low.value).toBe(String(declared[0].value));
     expect(high.value).toBe(String(declared[1].value));
   });
@@ -435,7 +435,7 @@ describe("CookbookCard — the other cookbooks", () => {
     render(<CookbookCard id="llm-guardrails" engine={new FakeEngine()} />);
     await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
     await screen.findByTestId("answer-severity");
-    const override = getDefinition("llm-guardrails").routing.controls!.parameters.find(
+    const override = getDefinition("llm-guardrails").routing!.controls!.parameters.find(
       (parameter) => parameter.format !== "percent"
     )!;
     expect(screen.getByText(override.value.toFixed(2))).toBeInTheDocument();

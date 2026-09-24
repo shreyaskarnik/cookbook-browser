@@ -57,6 +57,6 @@ describe("Shell", () => {
     const state = screen.getByRole("textbox", {
       name: /state/i,
     }) as HTMLTextAreaElement;
-    expect(state.value).toBe(getDefinition("consistency-choice").samples[0].text);
+    expect(state.value).toBe(getDefinition("consistency-choice").samples![0].text);
   });
 });

@@ -20,7 +20,7 @@ describe("consistencyChoice", () => {
   });
 
   it("routes a low-confidence choice to review at the cookbook's 0.60 floor", () => {
-    const [item] = definition.routing(
+    const [item] = definition.routing!(
       { action: { type: "choice", choice: "Remove", confidence: 0.55, probabilities: { Remove: 0.55, Warn: 0.45 } } },
       definition.labels
     );

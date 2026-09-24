@@ -13,7 +13,9 @@ it("answers the cookbook's fourteen questions on a real claim", async () => {
   const jev = await OpenJev.load({ model: "kev-0.6b", device: "cpu" });
   const lines: string[] = [`runtime: ${JSON.stringify(jev.runtime)}`];
 
-  for (const sample of definition.samples) {
+  // This cookbook is single-state, so it has samples; the field is optional
+  // on the type because a per-item cookbook offers `items` instead.
+  for (const sample of definition.samples!) {
     const started = performance.now();
     const answers = await jev.decide(sample.text, definition.questions);
     const ms = performance.now() - started;

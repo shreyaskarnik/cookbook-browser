@@ -29,18 +29,28 @@ export type Sample = {
 };
 
 /** The runnable half of a cookbook: what gets asked, what to try it on, and the
- *  code a reader would write to do the same thing themselves. */
+ *  code a reader would write to do the same thing themselves.
+ *
+ *  A definition carries either `routing` and `samples` (a single-state
+ *  cookbook) or `items` (a per-item one) — never neither, and a per-item
+ *  cookbook has no use for a whole-state `routing` or a flat `samples` list.
+ *  Nothing in this type enforces that split yet; the card is what
+ *  discriminates, and giving it that job is the next task's problem, not
+ *  this type's. `code` stays required either way: every cookbook has a code
+ *  sample a reader can copy, regardless of its shape. */
 export type CookbookDefinition = {
   /** Matches a CookbookEntry.id. */
   id: string;
   questions: Record<string, Question>;
   /** Short row labels, keyed like `questions`. */
   labels: Record<string, string>;
-  samples: Sample[];
+  /** Absent on a per-item cookbook, which offers its `items` to try instead. */
+  samples?: Sample[];
   code: string;
   /** How this cookbook decides what a person sees versus what is actioned.
-   *  Cookbooks genuinely differ here — see src/cookbooks/routing.ts. */
-  routing: RoutingRule;
+   *  Cookbooks genuinely differ here — see src/cookbooks/routing.ts. Absent
+   *  on a per-item cookbook, which routes through `items.rule` instead. */
+  routing?: RoutingRule;
   /** Which model this cookbook needs to produce a result worth looking at.
    *  MEASURED, never guessed — see the spec's viability probe. `why` states
    *  what was actually observed, so the banner can say something specific. */
@@ -54,7 +64,7 @@ export type CookbookDefinition = {
   criticalKeys?: readonly string[];
   /** The per-item half of a cookbook, for one that routes a list of items
    *  rather than a single state. A definition has `items` or it does not;
-   *  single-state cookbooks are unchanged and `routing` stays required for
-   *  them either way. */
+   *  single-state cookbooks are unchanged and `routing`/`samples` stay
+   *  required for them either way. */
   items?: ItemsSpec;
 };

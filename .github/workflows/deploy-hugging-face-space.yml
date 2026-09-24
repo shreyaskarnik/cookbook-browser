@@ -18,6 +18,10 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    # HF_TOKEN is an environment secret on the `HF` environment, not a
+    # repository secret, so the job has to name the environment or
+    # `secrets.HF_TOKEN` resolves to empty and the push step exits 1.
+    environment: HF
     steps:
       - uses: actions/checkout@v4
 
@@ -71,7 +75,7 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           if [ -z "$HF_TOKEN" ]; then
-            echo "The HF_TOKEN repository secret is required."
+            echo "The HF_TOKEN secret is required on the HF environment."
             exit 1
           fi
           git config --global user.email "github-actions[bot]@users.noreply.github.com"

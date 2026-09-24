@@ -1,4 +1,5 @@
 import type { Question } from "../engine/types";
+import type { ItemsSpec } from "./items";
 import type { RoutingRule } from "./routing";
 
 /** The five section headings on docs.typesafe.ai/cookbooks, in their order there. */
@@ -51,4 +52,9 @@ export type CookbookDefinition = {
    *  a fact every cookbook has, so it is optional: the other two cookbooks
    *  route without any notion of "critical". */
   criticalKeys?: readonly string[];
+  /** The per-item half of a cookbook, for one that routes a list of items
+   *  rather than a single state. A definition has `items` or it does not;
+   *  single-state cookbooks are unchanged and `routing` stays required for
+   *  them either way. */
+  items?: ItemsSpec;
 };

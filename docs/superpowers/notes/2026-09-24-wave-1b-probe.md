@@ -120,3 +120,30 @@ timings, the answers.
 **Also tested and disconfirmed:** whether the model favours whichever option is listed first.
 Reversing every option list moved two winners of eight, both between low-confidence options where
 it was already unsure. Option order is not driving these answers.
+
+## Addendum 3 — the two counted `why` claims, re-measured in a browser
+
+kev-0.6b, WebGPU/q4f16, Apple metal-3, local dev build. Three repeats of one sample returned
+byte-identical rows, so the model is deterministic on identical input; the CPU/browser gap in
+addendum 2 is the runtime, not noise.
+
+**Guardrails — the claim holds.** Severity across its three samples: 0.31, 0.09, 0.85 against the
+cookbook's 2.0 override. CPU measured a peak of 0.87, the browser 0.85. The override genuinely
+never fires at this size, which is what `requires.why` says.
+
+**Self-consistency: choices — two clauses held, one did not.**
+
+| Sample | below the 0.60 floor | enforcement action |
+|---|---|---|
+| Borderline post | 4 of 8 | Remove |
+| Clearly fine | 1 of 8 | Allow |
+| Ambiguous | 3 of 8 | Remove |
+
+"Three of the eight fall below the floor on the ambiguous post" — holds. "Remove against Allow"
+on borderline versus benign — holds. **"Spam against None" does not**: it contrasted the two
+posts' Category, which is Spam on CPU and None in a browser, so both posts read None to a
+visitor and the contrast does not exist. Dropped rather than reworded. Same failure as the
+citations card, found the same way: a real measurement describing a run nobody sees.
+
+Also disconfirmed here: hard line breaks in the state change nothing. The wrapped and unwrapped
+forms of the same post return identical rows.

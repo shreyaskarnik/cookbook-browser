@@ -34,10 +34,22 @@ const consistencyChoice: CookbookDefinition = {
   },
   // The cookbook's own threshold: below 0.60 the top label is "uncertain" and
   // goes to a person rather than to automatic enforcement.
+  //
+  // `why` re-measured IN A BROWSER (kev-0.6b, WebGPU/q4f16, Apple metal-3),
+  // because the CPU harness does not reproduce one — see addendum 2 of
+  // docs/superpowers/notes/2026-09-24-wave-1b-probe.md. Below the floor:
+  // borderline 4 of 8, benign 1 of 8, ambiguous 3 of 8. Enforcement action:
+  // Remove on borderline, Allow on benign, Remove on ambiguous.
+  //
+  // A third clause was dropped rather than reworded. It read "Spam against
+  // None", contrasting the two posts' Category, and it was true on CPU — where
+  // borderline categorises as Spam. In a browser both posts categorise as
+  // None, so the contrast does not exist for a visitor. Same failure as the
+  // citations card: a real measurement describing a run nobody sees.
   routing: minimumConfidenceRule(0.6),
   requires: {
     model: "kev-0.6b",
-    why: "Measured at 0.6B: three of the eight confidences fall below the 0.60 floor on the ambiguous post, while the borderline and benign posts produce different enforcement choices — Remove against Allow, Spam against None.",
+    why: "Three of the eight confidences fall below the 0.60 floor on the ambiguous post, and the borderline and benign posts settle on different enforcement actions — Remove against Allow.",
   },
   samples: [
     {

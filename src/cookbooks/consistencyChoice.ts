@@ -49,7 +49,7 @@ const consistencyChoice: CookbookDefinition = {
   routing: minimumConfidenceRule(0.6),
   requires: {
     model: "kev-0.6b",
-    why: "Three of the eight confidences fall below the 0.60 floor on the ambiguous post, and the borderline and benign posts settle on different enforcement actions — Remove against Allow.",
+    why: "At kev-0.6b, three of the eight confidences fall below the 0.60 floor on the ambiguous post, and the borderline and benign posts settle on different enforcement actions — Remove against Allow.",
   },
   samples: [
     {

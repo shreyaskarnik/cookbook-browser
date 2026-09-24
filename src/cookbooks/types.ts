@@ -55,8 +55,15 @@ export type CookbookDefinition = {
    *  on a per-item cookbook, which routes through `items.rule` instead. */
   routing?: RoutingRule;
   /** Which model this cookbook needs to produce a result worth looking at.
-   *  MEASURED, never guessed — see the spec's viability probe. `why` states
-   *  what was actually observed, so the banner can say something specific. */
+   *  MEASURED, never guessed — see the spec's viability probe.
+   *
+   *  `why` states what was actually observed. Note where it is seen: the
+   *  banner renders only when the LOADED model does not meet `model`, and a
+   *  larger model satisfies a smaller requirement — so a `kev-0.6b` card's
+   *  `why` is never shown to anyone, and a `kev-4b` card's disappears the
+   *  moment someone loads 4B. Treat it as a record of what was measured that
+   *  a visitor may never read, and name the model it was measured on: the
+   *  numbers differ by model, and a run at another size will not match. */
   requires: { model: "kev-0.6b" | "kev-4b"; why: string };
   /** Keys among `questions` that a person must be sure about before
    *  `claimVerdict` (`src/lib/routing.ts`) can call the claim "auto" —

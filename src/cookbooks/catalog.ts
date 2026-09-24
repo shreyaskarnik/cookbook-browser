@@ -106,7 +106,7 @@ export const CATALOG: readonly CookbookEntry[] = [
     category: "How-to",
     description:
       "Route each citation by how its section relates to the claim, skip the model when a quote isn't in the section, and drag the floor to see which verdicts move to a person.",
-    status: "planned",
+    status: "built",
   },
   {
     id: "llm-guardrails",

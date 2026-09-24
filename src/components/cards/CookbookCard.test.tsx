@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getDefinition } from "../../cookbooks";
+import type { Answer } from "../../engine";
 import { FakeEngine } from "../../engine/fake";
 import CookbookCard from "./CookbookCard";
 
@@ -520,5 +521,226 @@ describe("CookbookCard — the other cookbooks", () => {
 
     expect(screen.getByText(/The state has changed since this run/)).toBeInTheDocument();
     expect(screen.queryByText(/claim text has changed/)).not.toBeInTheDocument();
+  });
+});
+
+/** The one per-item cookbook: the same question asked against each of a list of
+ *  citations, each routed on its own. */
+const CITATIONS = "citation-check";
+
+/** The spec under test, read off the definition rather than re-stated here, so
+ *  these tests describe the cookbook that ships rather than a copy of it. */
+const spec = getDefinition(CITATIONS).items!;
+
+/** The citations this cookbook's own pre-check decides without a model call. */
+const preChecked = spec.items.filter((item) => spec.preCheck?.(item, spec.labelFor));
+
+/** One `relation` answer, shaped as the cookbook's rule expects. */
+const relationAnswer = (choice: string, confidence: number): Record<string, Answer> => ({
+  relation: { type: "choice", choice, confidence, probabilities: { [choice]: confidence } },
+});
+
+/** An engine whose every `decide` hangs until the test resolves it, in call
+ *  order. A run over a list lands one item at a time, and holding each request
+ *  open is what makes "one at a time" observable rather than a race. */
+function heldEngine() {
+  const pending: Array<(answers: Record<string, Answer>) => void> = [];
+  const engine = {
+    runtime: { engine: "local" as const, model: "x", device: "x", dtype: "x" },
+    decide: () =>
+      new Promise<Record<string, Answer>>((resolve) => {
+        pending.push(resolve);
+      }),
+    countTokens: () => 10,
+    dispose: async () => {},
+  };
+  return { engine, pending };
+}
+
+describe("CookbookCard — Double-checking citations", () => {
+  it("asks once per item and shows one row per item", async () => {
+    const engine = new FakeEngine();
+    const decideSpy = vi.spyOn(engine, "decide");
+    render(<CookbookCard id={CITATIONS} engine={engine} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+
+    for (const item of spec.items) {
+      expect(await screen.findByTestId(`answer-${item.id}`)).toBeInTheDocument();
+    }
+    expect(screen.getAllByTestId(/^answer-/)).toHaveLength(spec.items.length);
+
+    // One request per item, minus the ones the cookbook's pre-check answered
+    // without one. Each request carries that item's state and no other's.
+    expect(decideSpy).toHaveBeenCalledTimes(spec.items.length - preChecked.length);
+    const asked = decideSpy.mock.calls.map(([state]) => state);
+    expect(new Set(asked).size).toBe(asked.length);
+    for (const item of spec.items) {
+      if (preChecked.includes(item)) continue;
+      expect(asked).toContain(spec.toState(item));
+    }
+  });
+
+  it("shows how many items have landed while a run is in flight", async () => {
+    const { engine, pending } = heldEngine();
+    render(<CookbookCard id={CITATIONS} engine={engine} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+
+    const total = spec.items.length;
+    // The first request is open and nothing has landed yet.
+    expect(screen.getByText(new RegExp(`0 of ${total} citations`))).toBeInTheDocument();
+    expect(pending).toHaveLength(1);
+
+    await act(async () => {
+      pending.shift()!(relationAnswer("supports", 0.9));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    // One item has landed, and it is on screen while the rest are still out.
+    expect(screen.getByText(new RegExp(`1 of ${total} citations`))).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^answer-/)).toHaveLength(1);
+
+    // Let the rest of the list through, so the run finishes rather than
+    // leaving requests open past the end of the test.
+    await act(async () => {
+      while (pending.length > 0) {
+        pending.shift()!(relationAnswer("supports", 0.9));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    });
+    expect(await screen.findByText(new RegExp(`^${total} citations,`))).toBeInTheDocument();
+  });
+
+  it("keeps the other items when one item's request fails", async () => {
+    const fake = new FakeEngine();
+    // The first citation the cookbook would actually send — not a pre-checked
+    // one, which never reaches the engine to fail.
+    const doomed = spec.items.find((item) => !preChecked.includes(item))!;
+    const flaky = {
+      runtime: fake.runtime,
+      decide: async (state: string, questions: Parameters<typeof fake.decide>[1]) => {
+        if (state === spec.toState(doomed)) throw new Error("The model ran out of memory.");
+        return fake.decide(state, questions);
+      },
+      countTokens: (state: string) => fake.countTokens(state),
+      dispose: async () => {},
+    };
+
+    render(<CookbookCard id={CITATIONS} engine={flaky} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+
+    expect(await screen.findByTestId(`item-error-${doomed.id}`)).toHaveTextContent(
+      /ran out of memory/
+    );
+    // Every other citation still has its row: one failure is one row's problem.
+    for (const item of spec.items) {
+      if (item.id === doomed.id) continue;
+      expect(await screen.findByTestId(`answer-${item.id}`)).toBeInTheDocument();
+    }
+    expect(screen.queryByTestId(`answer-${doomed.id}`)).not.toBeInTheDocument();
+    expect(screen.getAllByTestId(/^answer-/)).toHaveLength(spec.items.length - 1);
+  });
+
+  it("does not ask the model for an item its pre-check already decided", async () => {
+    expect(preChecked).toHaveLength(1);
+    const skipped = preChecked[0];
+
+    const engine = new FakeEngine();
+    const decideSpy = vi.spyOn(engine, "decide");
+    render(<CookbookCard id={CITATIONS} engine={engine} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+    const row = await screen.findByTestId(`answer-${skipped.id}`);
+
+    // Not "the row looks different": the engine was never handed this
+    // citation's state at all, under any phrasing of it.
+    const asked = decideSpy.mock.calls.map(([state]) => state);
+    expect(asked).toHaveLength(spec.items.length - 1);
+    expect(asked).not.toContain(spec.toState(skipped));
+    for (const state of asked) {
+      expect(state).not.toContain(skipped.fields.claim);
+    }
+
+    // It was decided all the same, by the cookbook's own check.
+    expect(row).toHaveAttribute("data-disposition", "auto");
+    expect(row).toHaveTextContent(/fabricated/);
+  });
+
+  it("re-routes every item when a control moves, without asking again", async () => {
+    const engine = new FakeEngine();
+    const decideSpy = vi.spyOn(engine, "decide");
+    render(<CookbookCard id={CITATIONS} engine={engine} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+    await screen.findByTestId(`answer-${spec.items[spec.items.length - 1].id}`);
+
+    const requests = decideSpy.mock.calls.length;
+    expect(requests).toBe(spec.items.length - preChecked.length);
+
+    const floor = screen.getByRole("slider", { name: /floor/i });
+    const skipped = new Set(preChecked.map((item) => item.id));
+    const idOf = (row: HTMLElement) => row.getAttribute("data-testid")!.replace("answer-", "");
+
+    // A floor at the top puts every model-answered citation below it. The
+    // pre-checked one is not the rule's to move: it never had answers.
+    fireEvent.change(floor, { target: { value: "1" } });
+    const raised = screen.getAllByTestId(/^answer-/);
+    expect(raised).toHaveLength(spec.items.length);
+    for (const row of raised) {
+      expect(row).toHaveAttribute(
+        "data-disposition",
+        skipped.has(idOf(row)) ? "auto" : "review"
+      );
+    }
+
+    // And a floor at the bottom brings all of them back.
+    fireEvent.change(floor, { target: { value: "0" } });
+    for (const row of screen.getAllByTestId(/^answer-/)) {
+      expect(row).toHaveAttribute("data-disposition", "auto");
+    }
+
+    // Every one of those rows moved without a single new request.
+    expect(decideSpy).toHaveBeenCalledTimes(requests);
+  });
+
+  it("marks the results stale when any item is edited", async () => {
+    render(<CookbookCard id={CITATIONS} engine={new FakeEngine()} />);
+    await userEvent.click(screen.getByRole("button", { name: /^run$/i }));
+    const first = spec.items[0];
+    await screen.findByTestId(`answer-${first.id}`);
+    expect(screen.queryByTestId("items-stale-badge")).not.toBeInTheDocument();
+
+    const claim = within(screen.getByTestId(`item-${first.id}`)).getByLabelText("Claim");
+    await userEvent.type(claim, " And one more thing.");
+
+    expect(screen.getByTestId("items-stale-badge")).toBeInTheDocument();
+    expect(screen.getByText(/The list has changed since this run/)).toBeInTheDocument();
+    // The rows are still there, and still re-routable.
+    expect(screen.getByTestId(`answer-${first.id}`)).toBeInTheDocument();
+  });
+
+  it("lets a visitor add an item to the list and remove one", async () => {
+    render(<CookbookCard id={CITATIONS} engine={new FakeEngine()} />);
+    const listed = () => screen.getAllByTestId(/^item-/);
+    expect(listed()).toHaveLength(spec.items.length);
+
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    expect(listed()).toHaveLength(spec.items.length + 1);
+
+    const first = spec.items[0];
+    await userEvent.click(
+      screen.getByRole("button", { name: `Remove ${spec.labelFor(first)}` })
+    );
+    expect(screen.queryByTestId(`item-${first.id}`)).not.toBeInTheDocument();
+    expect(listed()).toHaveLength(spec.items.length);
+  });
+
+  it("offers no whole-state box or sample rail, because this cookbook has neither", () => {
+    render(<CookbookCard id={CITATIONS} engine={new FakeEngine()} />);
+    expect(screen.queryByRole("textbox", { name: /^state$/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("Try it on")).not.toBeInTheDocument();
+    // It still says what it asks, and links to the cookbook it comes from.
+    expect(screen.getAllByTestId("question-row")).toHaveLength(1);
+    expect(screen.getByRole("link", { name: /cookbook/i })).toHaveAttribute(
+      "href",
+      "https://docs.typesafe.ai/cookbooks/citation_check"
+    );
   });
 });

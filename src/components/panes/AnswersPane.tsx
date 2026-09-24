@@ -1,9 +1,5 @@
 import type { RoutedItem } from "../../cookbooks/routing";
-
-const DISPOSITION_STYLE: Record<RoutedItem["disposition"], string> = {
-  auto: "bg-auto",
-  review: "bg-review",
-};
+import RoutedRow from "./RoutedRow";
 
 export default function AnswersPane({
   routed,
@@ -35,40 +31,8 @@ export default function AnswersPane({
         className={`flex flex-col gap-2 ${stale ? "opacity-50" : ""}`}
       >
         {routed.map((entry) => (
-          <li
-            key={entry.key}
-            data-testid={`answer-${entry.key}`}
-            data-disposition={entry.disposition}
-            className="grid grid-cols-[11rem_1fr_5rem] items-center gap-3 text-sm"
-          >
-            <span className="font-medium">{entry.label}</span>
-            <span className="relative h-2 rounded-full bg-line">
-              {/* The band, drawn behind the bar, so a row's position relative to
-                  it is visible without reading the numbers. Only band-routed
-                  cookbooks have one. */}
-              {band && (
-                <span
-                  className="absolute inset-y-0 rounded-full bg-review/20"
-                  style={{
-                    left: `${band.low * 100}%`,
-                    width: `${(band.high - band.low) * 100}%`,
-                  }}
-                />
-              )}
-              <span
-                className={`absolute inset-y-0 left-0 rounded-full ${DISPOSITION_STYLE[entry.disposition]}`}
-                style={{ width: `${entry.value * 100}%` }}
-              />
-            </span>
-            <span
-              className={
-                entry.disposition === "review" ? "text-review font-medium" : "text-stone"
-              }
-            >
-              {/* Outcome first, then the number or option that backs it — a
-                  severity row has no detail, so it renders on its own. */}
-              {entry.detail ? `${entry.outcome} (${entry.detail})` : entry.outcome}
-            </span>
+          <li key={entry.key}>
+            <RoutedRow entry={entry} band={band} />
           </li>
         ))}
       </ul>

@@ -93,9 +93,19 @@ Wave 1 therefore splits:
 - **1a — the foundation, plus the two cookbooks that fit the existing single-state shape.** The run
   state collapses into one union, routing moves into the definitions, the model requirement and its
   callout are built, and Self-consistency: choices and Guardrails for LLMs ship. Plan written.
-- **1b — the per-item mechanic, plus the two cookbooks that need it.** A list of items, the same
-  questions against each, routed individually, with the item list itself editable. Carries Double-
-  checking citations and Classifying RAG passages.
+- **1b — the per-item mechanic, plus the one cookbook that survived its probe.** A list of items,
+  the same questions against each, routed individually, with the item list itself editable. Carries
+  Double-checking citations.
+
+  **Cut 2026-09-24: Classifying RAG passages.** Probed at both sizes with its four verbatim
+  questions (`docs/superpowers/notes/2026-09-24-wave-1b-probe.md`). At 0.6B two of the cascade's
+  four branches never fire — injection peaks at 69% against a strict `> 0.70`, the conflict route
+  at 3%. At 4B it is worse and worse in the one direction that matters: every legitimate passage
+  is excluded and the prompt-injection passage is the only one included, with injection detection
+  falling 69% → 49% as the model grows. The cookbook puts the injection route first because it is
+  a security decision, and a demo that routes an injection into the answer context teaches the
+  inverse of its own lesson. Second and much starker instance of "bigger is not uniformly better".
+  Sixteen built cookbooks therefore become fifteen.
 - **1c — the two cookbooks with their own interaction.** Function calling (tool probabilities
   competing, with confidence gating the call) and Parallel questions (N separate requests against
   one batched request, compared on wall-clock). Neither shares a mechanic with anything else.

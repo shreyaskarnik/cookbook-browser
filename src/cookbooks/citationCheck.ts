@@ -213,7 +213,7 @@ for (const citation of citations) {
   // browser will do, which is why `why` below states no timing.
   requires: {
     model: "kev-0.6b",
-    why: "Two of these citations land below the 0.8 auto-accept floor at kev-0.6b and go to a person, and one does at kev-4b. Each citation is its own request, so the list is worked through one at a time.",
+    why: "Two of these citations land below the 0.8 auto-accept floor and go to a person, so the floor has a case to catch here. Each citation is its own request, so the list is worked through one at a time.",
   },
   items: ITEMS,
 };

@@ -670,10 +670,15 @@ describe("CookbookCard — Double-checking citations", () => {
       for (const state of asked) {
         expect(state).not.toContain(skipped.fields.claim);
       }
-      // It was decided all the same, by the cookbook's own check.
+      // It was decided all the same, by the cookbook's own check. Asserted on
+      // the text as well as the attribute: "did not go to a person" is
+      // something a visitor reads, and three defects on this branch shipped
+      // through suites where the attribute was right and the text said
+      // nothing.
       const row = await screen.findByTestId(`answer-${skipped.id}`);
       expect(row).toHaveAttribute("data-disposition", "auto");
       expect(row).toHaveTextContent(/fabricated/);
+      expect(row).not.toHaveTextContent("To a person");
     }
   });
 

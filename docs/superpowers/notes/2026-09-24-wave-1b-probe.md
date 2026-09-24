@@ -80,3 +80,43 @@ The claim this replaced said no citation falls below the floor at 4B. On the shi
 It was not fabricated — it was true of the probe's citations — which is the point: a measurement
 generalised onto different content reads exactly like a measured one and is not. Caught by review,
 which asked whether `why` matched what was actually measured rather than whether it sounded right.
+
+## Addendum 2 — the smoke harness is not representative of a browser
+
+Prompted by a live run of the choices card, compared against the same sample measured here.
+One run per configuration, one sample, so read it as a direction and not a magnitude.
+
+Same cookbook, same sample (`borderline-post`), same eight questions:
+
+| Question | browser, WebGPU/q4f16 | CPU/q4f16 | CPU/q4 |
+|---|---|---|---|
+| Category | None 50% | None 50% | Spam 54% |
+| Primary risk | Harassment 75% | AccountHistory 37% | Harassment 35% |
+| Directed at | None 56% | None 89% | None 87% |
+| Enforcement action | Strike 49% | Remove 41% | Remove 51% |
+| Queue | Threat 29% | Spam 88% | Spam 91% |
+| Link handling | Allow 57% | Allow 74% | Allow 74% |
+| Final call | Human 71% | Human 91% | Human 88% |
+| Severity | High 43% | None 38% | Low 40% |
+
+**Neither CPU configuration reproduces the browser.** Matching the browser's dtype fixes one row
+and leaves the rest apart; `Queue` differs by the whole width of the scale, 29% against 88%, and
+picks a different option. Device is doing at least as much work as dtype.
+
+Every probe in this project, and every `requires.why` counted claim, was measured on CPU. Visitors
+run WebGPU. This is the same lesson as the citations `why` correction, one level up: not the
+timings, the answers.
+
+**Consequences, recorded rather than acted on:**
+
+1. A `why` should not make a counted claim ("three of the eight fall below the floor") unless the
+   count was taken in a browser. `consistencyChoice` and `guardrails` both do.
+2. The decision to cut Classifying RAG passages rests on CPU numbers. The 4B result — the
+   injection passage the only one included — is damning enough that a browser check is unlikely
+   to reverse it, but the decision has not been made on the runtime a visitor uses.
+3. `pnpm smoke` is a viability *screen*, not a measurement of what ships. It is still the right
+   cheap first filter; it is not evidence for a sentence on the page.
+
+**Also tested and disconfirmed:** whether the model favours whichever option is listed first.
+Reversing every option list moved two winners of eight, both between low-confidence options where
+it was already unsure. Option order is not driving these answers.

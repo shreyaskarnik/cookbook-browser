@@ -3,7 +3,7 @@ import consistencyChoice from "./consistencyChoice";
 import consistencyNoul from "./consistencyNoul";
 import guardrails from "./guardrails";
 import { bandRule, hazardRule, minimumConfidenceRule } from "./routing";
-import type { Answer } from "../engine";
+import type { Answer } from "../engine/types";
 
 const noul = (p: number): Answer => ({
   type: "noul", answer: p >= 0.5, probability: p, confidence: Math.max(p, 1 - p),
